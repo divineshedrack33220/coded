@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coded | Live Requests</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+ <link rel="icon" type="image/png" href="./logo.png">
+<link rel="icon" type="image/jpeg" href="./logo.jpeg">
+
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000000; color: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    header { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #000000; border-bottom: 1px solid #2A2A2A; z-index: 100; }
+    .logo-small { width: 40px; height: 40px; }
+    .logo-small img { width: 100%; height: 100%; object-fit: contain; }
+    .status-indicator { padding: 8px 16px; background: #1F1F1F; border: 1px solid #2A2A2A; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .status-indicator svg { width: 12px; height: 12px; }
+    .status-available svg { fill: #00FF00; }
+    .status-busy svg { fill: #FFFF00; }
+    .status-offline svg { fill: #FF0000; }
+    .feed { flex: 1; overflow-y: auto; padding: 16px 24px 80px; padding-top: 80px; position: relative; }
+    .request-card { background: #1F1F1F; border-radius: 16px; padding: 20px; margin-bottom: 20px; display: flex; flex-direction: column; }
+    .card-header { display: flex; align-items: center; margin-bottom: 12px; }
+    .profile-photo { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; margin-right: 16px; background: #2A2A2A; }
+    .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .user-info { flex: 1; }
+    .name-age { font-size: 18px; font-weight: 600; }
+    .distance { font-size: 14px; color: #8E8E8E; }
+    .category { font-size: 14px; color: #FFFFFF; background: #2A2A2A; padding: 4px 12px; border-radius: 16px; align-self: flex-start; margin-bottom: 8px; }
+    .request-text { font-size: 16px; margin-bottom: 12px; line-height: 1.4; }
+    .card-footer { display: flex; justify-content: space-between; align-items: center; }
+    .time-rating { font-size: 14px; color: #8E8E8E; display: flex; align-items: center; gap: 8px; }
+    .time-rating svg { width: 16px; height: 16px; fill: #FFD700; }
+    .actions { display: flex; gap: 12px; position: relative; }
+    .action-btn { width: 48px; height: 48px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: transparent; }
+    .action-btn svg { width: 24px; height: 24px; fill: #FFFFFF; transition: fill 0.4s ease, transform 0.4s ease; }
+    .action-btn.favorite svg { fill: #FFFFFF; }
+    .action-btn.favorite.favorited svg { fill: #FF0000; }
+    .action-btn.favorite.animate svg { animation: heartPulse 0.6s ease; }
+    @keyframes heartPulse { 0% { transform: scale(1); } 20% { transform: scale(1.4); } 40% { transform: scale(1.1); } 60% { transform: scale(1.4); } 100% { transform: scale(1); } }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 64px; background: #1F1F1F; border-top: 1px solid #2A2A2A; z-index: 100; }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: #8E8E8E; cursor: pointer; }
+    .nav-item.active { color: #FFFFFF; }
+    .nav-icon svg { width: 24px; height: 24px; margin-bottom: 4px; fill: currentColor; }
+    .fab { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 64px; height: 64px; background: #FFFFFF; color: #000000; border-radius: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5); cursor: pointer; z-index: 101; }
+    .fab svg { width: 32px; height: 32px; fill: currentColor; }
+    .no-requests { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #8E8E8E; font-size: 18px; width: 100%; padding: 0 24px; }
+    .no-requests-icon { width: 96px; height: 96px; margin: 0 auto 24px; opacity: 0.4; }
+    .no-requests h3 { font-size: 20px; margin-bottom: 12px; }
+    .no-requests p { font-size: 16px; line-height: 1.5; }
+    @keyframes confettiFall { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(80px) rotate(720deg); opacity: 0; } }
+    .confetti-piece { position: absolute; width: 6px; height: 12px; pointer-events: none; animation: confettiFall 1s ease-out forwards; z-index: 10; }
+    #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(31, 31, 31, 0.95); color: #FFFFFF; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); opacity: 0; visibility: hidden; transition: opacity 0.3s ease, transform 0.3s ease; z-index: 200; max-width: 90%; text-align: center; backdrop-filter: blur(8px); }
+    #toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(-8px); }
+    .loading-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #8E8E8E; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-small">
+      <img src="asset/logo.png" alt="Coded Logo">
+    </div>
+    <div class="status-indicator status-available" id="status">
+      <svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg>
+      Available
+    </div>
+  </header>
+
+  <div class="feed" id="feed">
+    <div class="no-requests" id="no-requests">
+      <div class="no-requests-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/>
+        </svg>
+      </div>
+      <h3>No live requests right now</h3>
+      <p>Be the first to post a request or check back soon — people are always looking to connect nearby.</p>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item active" id="nav-live">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>
+      </div>
+      <div>Live</div>
+    </div>
+    <div class="nav-item" id="nav-favorites">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      </div>
+      <div>Favorites</div>
+    </div>
+    <div class="nav-item"></div>
+    <div class="nav-item" id="nav-chats">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
+      </div>
+      <div>Chats</div>
+    </div>
+    <div class="nav-item" id="nav-profile">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      </div>
+      <div>Profile</div>
+    </div>
+
+    <button class="fab" id="fab-post" aria-label="Post Request">
+      <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+    </button>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
+
+    function showToast(message, duration = 2000) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toast.hideTimeout);
+      toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
+    }
+
+    function createConfetti(btn) {
+      const colors = ['#FFFFFF', '#FF0000'];
+      const rect = btn.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      for (let i = 0; i < 30; i++) {
+        const piece = document.createElement('div');
+        piece.classList.add('confetti-piece');
+        piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.left = centerX + (Math.random() - 0.5) * 60 + 'px';
+        piece.style.top = centerY + (Math.random() - 0.5) * 60 + 'px';
+        piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+        piece.style.animationDelay = Math.random() * 0.3 + 's';
+
+        document.body.appendChild(piece);
+
+        setTimeout(() => piece.remove(), 1500);
+      }
+    }
+
+    (function() {
+      const token = localStorage.getItem('token');
+      if (!token || token.length < 100) {
+        showToast('Invalid or missing session. Please log in.');
+        localStorage.removeItem('token');
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+      }
+
+      let currentUserId = null;
+
+      function parseJwt(token) {
+        try {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+          const payload = JSON.parse(jsonPayload);
+          return payload.userId || payload.sub || payload.id || null;
+        } catch (e) {
+          console.error('Failed to parse JWT:', e);
+          return null;
+        }
+      }
+
+      currentUserId = parseJwt(token);
+
+      const statusEl = document.getElementById('status');
+      const statuses = [
+        { text: 'Available', class: 'status-available', value: 'available' },
+        { text: 'Busy', class: 'status-busy', value: 'busy' },
+        { text: 'Offline', class: 'status-offline', value: 'offline' }
+      ];
+      let currentStatusIndex = 0;
+
+      async function loadStatus() {
+        try {
+          const res = await fetch('https://coded-wt2w.onrender.com/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!res.ok) throw new Error('Failed to load profile');
+          const data = await res.json();
+          const statusValue = data.status || 'available';
+          const index = statuses.findIndex(s => s.value === statusValue);
+          if (index !== -1) {
+            currentStatusIndex = index;
+            updateStatusUI();
+          }
+        } catch (err) {
+          console.error('Load status error:', err);
+        }
+      }
+
+      function updateStatusUI() {
+        const s = statuses[currentStatusIndex];
+        statusEl.className = `status-indicator ${s.class}`;
+        statusEl.innerHTML = `<svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg> ${s.text}`;
+      }
+
+      statusEl.addEventListener('click', async () => {
+        currentStatusIndex = (currentStatusIndex + 1) % statuses.length;
+        updateStatusUI();
+        const newStatus = statuses[currentStatusIndex].value;
+        try {
+          await fetch('https://coded-wt2w.onrender.com/me/status', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ status: newStatus })
+          });
+          showToast('Status updated');
+        } catch (err) {
+          console.error('Update status error:', err);
+          showToast('Failed to update status');
+        }
+      });
+
+      const feedEl = document.getElementById('feed');
+      const noRequestsEl = document.getElementById('no-requests');
+
+      async function loadFeed() {
+        feedEl.innerHTML = '<div class="loading-state">Loading live requests...</div>';
+        try {
+          const res = await fetch('https://coded-wt2w.onrender.com/feed', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!res.ok) throw new Error('Failed to load feed');
+          const posts = await res.json();
+
+          feedEl.innerHTML = '';
+
+          // Ensure posts is always an array
+          const postsArray = Array.isArray(posts) ? posts : [];
+
+          if (postsArray.length === 0) {
+            noRequestsEl.style.display = 'block';
+            return;
+          }
+
+          noRequestsEl.style.display = 'none';
+
+          const now = Date.now();
+
+          let favorites = [];
+          try {
+            const favRes = await fetch('https://coded-wt2w.onrender.com/favorites', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (favRes.ok) {
+              const favData = await favRes.json();
+              favorites = Array.isArray(favData) ? favData : [];
+            }
+          } catch (err) {
+            console.error('Failed to load favorites:', err);
+            favorites = [];
+          }
+
+          const favoriteUserIds = new Set(favorites.map(f => f.targetUserId || ''));
+
+          postsArray.forEach(post => {
+            // Removed expiration check to display all posts
+
+            // Safely extract user data from the clean user object
+            const postUser = post.user || {};
+            const cardUserId = postUser.id || post.userId;
+
+            if (cardUserId === currentUserId) return; // Skip own post
+
+            const card = document.createElement('div');
+            card.className = 'request-card';
+            card.dataset.postId = post.id;
+            card.dataset.userId = cardUserId;
+
+            const isFavorited = favoriteUserIds.has(cardUserId);
+
+            card.innerHTML = `
+              <div class="card-header">
+                <div class="profile-photo">
+                  <img src="${postUser.avatar || fallbackImage}" alt="${postUser.name || 'User'}" onerror="this.src='${fallbackImage}'">
+                </div>
+                <div class="user-info">
+                  <div class="name-age">${postUser.name || 'User'}</div>
+                  <div class="distance">${post.distance || 'Nearby'}</div>
+                </div>
+              </div>
+              ${post.category ? `<div class="category">${post.category}</div>` : ''}
+              <div class="request-text">${post.content || 'No content'}</div>
+              <div class="card-footer">
+                <div class="time-rating">
+                  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>
+                  <span>${formatTime(post.createdAt)}</span>
+                </div>
+                <div class="actions">
+                  <button class="action-btn ignore"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+                  <button class="action-btn favorite ${isFavorited ? 'favorited' : ''}"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button>
+                  <button class="action-btn accept"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></button>
+                </div>
+              </div>
+            `;
+            feedEl.appendChild(card);
+          });
+
+          checkEmpty();
+        } catch (err) {
+          console.error('Feed load error:', err);
+          showToast('Failed to load live requests');
+          feedEl.innerHTML = '<div class="loading-state">Error loading. <button onclick="location.reload()">Retry</button></div>';
+        }
+      }
+
+      function formatTime(timestamp) {
+        if (!timestamp) return 'Just now';
+        const diff = Date.now() - timestamp * 1000;
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+        return Math.floor(diff / 3600000) + 'h ago';
+      }
+
+      function checkEmpty() {
+        const cards = feedEl.querySelectorAll('.request-card');
+        noRequestsEl.style.display = cards.length === 0 ? 'block' : 'none';
+      }
+
+      document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.action-btn');
+        if (!btn) return;
+
+        const card = btn.closest('.request-card');
+        const userId = card.dataset.userId;
+
+        if (userId === currentUserId) {
+          showToast('Cannot interact with your own post');
+          return;
+        }
+
+        if (btn.classList.contains('accept')) {
+          try {
+            const res = await fetch('https://coded-wt2w.onrender.com/chats', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ participants: [userId] })
+            });
+            if (!res.ok) throw new Error('Failed to create chat');
+            showToast('Chat created!');
+            setTimeout(() => window.location.href = `chats.html?id=${userId}`, 800);
+          } catch (err) {
+            console.error('Chat creation error:', err);
+            showToast('Failed to create chat');
+          }
+        } else if (btn.classList.contains('favorite')) {
+          btn.classList.add('animate');
+          setTimeout(() => btn.classList.remove('animate'), 600);
+
+          const isCurrentlyFavorited = btn.classList.contains('favorited');
+
+          try {
+            const method = isCurrentlyFavorited ? 'DELETE' : 'POST';
+            const res = await fetch('https://coded-wt2w.onrender.com/favorite', {
+              method,
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ targetUserId: userId })
+            });
+
+            if (res.status === 409 && method === 'POST') {
+              showToast('Already in favorites');
+              btn.classList.add('favorited');
+            } else if (!res.ok) {
+              throw new Error(method === 'POST' ? 'Failed to add favorite' : 'Failed to remove favorite');
+            } else {
+              showToast(method === 'POST' ? 'Added to favorites' : 'Removed from favorites');
+              btn.classList.toggle('favorited');
+              if (method === 'POST') createConfetti(btn);
+            }
+
+            card.style.transition = 'opacity 0.3s';
+            card.style.opacity = '0';
+            setTimeout(() => {
+              card.remove();
+              checkEmpty();
+            }, 300);
+
+            setTimeout(() => location.reload(), 800);
+          } catch (err) {
+            console.error('Favorite action error:', err);
+            showToast('Failed to update favorite');
+          }
+        } else if (btn.classList.contains('ignore')) {
+          card.style.transition = 'opacity 0.3s';
+          card.style.opacity = '0';
+          setTimeout(() => {
+            card.remove();
+            checkEmpty();
+          }, 300);
+        }
+      });
+
+      document.getElementById('nav-live').addEventListener('click', () => location.reload());
+      document.getElementById('nav-favorites').addEventListener('click', () => window.location.href = 'favorites.html');
+      document.getElementById('nav-chats').addEventListener('click', () => window.location.href = 'chats.html');
+      document.getElementById('nav-profile').addEventListener('click', () => window.location.href = 'my-profile.html');
+
+      document.getElementById('fab-post').addEventListener('click', () => {
+        window.location.href = 'post.html';
+      });
+
+      loadStatus();
+      loadFeed();
+
+      // Register service worker for PWA
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered', reg))
+          .catch(err => console.error('Service Worker registration failed', err));
+      }
+
+      // Push notifications setup
+      async function setupPushNotifications() {
+        if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+          console.warn('Push notifications not supported');
+          return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          console.warn('Notification permission denied');
+          return;
+        }
+
+        const registration = await navigator.serviceWorker.ready;
+
+        // Fetch VAPID public key from server (assume endpoint /vapid-public-key)
+        let vapidPublicKey;
+        try {
+          const res = await fetch('https://coded-wt2w.onrender.com/vapid-public-key');
+          if (res.ok) {
+            vapidPublicKey = await res.text();
+          } else {
+            console.error('Failed to fetch VAPID public key');
+            return;
+          }
+        } catch (err) {
+          console.error('VAPID fetch error:', err);
+          return;
+        }
+
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        });
+
+        // Send subscription to server (assume endpoint /subscribe)
+        try {
+          await fetch('https://coded-wt2w.onrender.com/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(subscription)
+          });
+          console.log('Push subscription sent to server');
+        } catch (err) {
+          console.error('Failed to send push subscription:', err);
+        }
+      }
+
+      function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+          outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+      }
+
+      setupPushNotifications();
+    })();
+  </script>
+</body>
+</html>
