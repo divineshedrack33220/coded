@@ -554,7 +554,7 @@
 
       if (text) {
         try {
-          await fetch('https://coded-wt2w.onrender.com/message', {
+          await fetch('https://codedsignal.org/message', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -578,7 +578,7 @@
           formData.append('photo', file);
 
           try {
-            const uploadRes = await fetch('https://coded-wt2w.onrender.com/upload-photo', {
+            const uploadRes = await fetch('https://codedsignal.org/upload-photo', {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${token}` },
               body: formData
@@ -587,7 +587,7 @@
 
             const { url } = await uploadRes.json();
 
-            await fetch('https://coded-wt2w.onrender.com/message', {
+            await fetch('https://codedsignal.org/message', {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -632,7 +632,7 @@
 
     async function loadChatHeader() {
       try {
-        const chatRes = await fetch(`https://coded-wt2w.onrender.com/chats/${urlId}`, {
+        const chatRes = await fetch(`https://codedsignal.org/chats/${urlId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -650,7 +650,7 @@
         }
 
         if (chatRes.status === 404) {
-          const userRes = await fetch(`https://coded-wt2w.onrender.com/users/${urlId}`, {
+          const userRes = await fetch(`https://codedsignal.org/users/${urlId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (!userRes.ok) throw new Error('User not found');
@@ -677,7 +677,7 @@
     async function loadMessages() {
       if (!chatId && partnerUserId) {
         try {
-          const createRes = await fetch('https://coded-wt2w.onrender.com/chats', {
+          const createRes = await fetch('https://codedsignal.org/chats', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -700,7 +700,7 @@
       }
 
       try {
-        const res = await fetch(`https://coded-wt2w.onrender.com/messages/${chatId}`, {
+        const res = await fetch(`https://codedsignal.org/messages/${chatId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) throw new Error(`Failed to load messages: ${res.status}`);
@@ -805,4 +805,5 @@
     updateSendIcon();
   </script>
 </body>
+
 </html>
