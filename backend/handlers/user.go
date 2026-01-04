@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -42,11 +43,27 @@ func generateReferralCode() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// GetUser - Fixed to always return 200 OK with fallback data for missing users
 func GetUser(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		// Invalid ID format – still return fallback instead of 400 to avoid breaking frontend
+		log.Println("Invalid user ID format:", userIDStr)
+		c.JSON(http.StatusOK, gin.H{
+			"id":         userIDStr,
+			"name":       "Unknown User",
+			"avatar":     fallbackAvatar,
+			"status":     "offline",
+			"bio":        "",
+			"photos":     []string{},
+			"age":        0,
+			"distance":   0,
+			"rating":     0,
+			"verified":   false,
+			"lastActive": 0,
+			"interests":  []string{},
+		})
 		return
 	}
 
@@ -58,25 +75,31 @@ func GetUser(c *gin.Context) {
 	var user models.User
 	err = usersColl.FindOne(ctx, bson.M{"_id": userID}).Decode(&user)
 	if err == mongo.ErrNoDocuments {
+		log.Println("User not found, returning fallback:", userIDStr)
 		c.JSON(http.StatusOK, gin.H{
-			"id":     userID.Hex(),
-			"name":   "Unknown User",
-			"avatar": fallbackAvatar,
-			"status": "offline",
+			"id":         userID.Hex(),
+			"name":       "Unknown User",
+			"avatar":     fallbackAvatar,
+			"status":     "offline",
+			"bio":        "",
+			"photos":     []string{},
+			"age":        0,
+			"distance":   0,
+			"rating":     0,
+			"verified":   false,
+			"lastActive": 0,
+			"interests":  []string{},
 		})
 		return
 	}
 	if err != nil {
+		log.Println("Database error fetching user:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"id":     user.ID.Hex(),
-		"name":   user.Name,
-		"avatar": user.Avatar,
-		"status": user.Status,
-	})
+	// Return full user data if found
+	c.JSON(http.StatusOK, user)
 }
 
 func UpdateMyProfile(c *gin.Context) {
