@@ -12,7 +12,6 @@ import (
 	"coded/database"
 	"coded/routes"
 
-	"github.com/gin-gonic/gin"       // Now properly used via type annotation
 	"github.com/joho/godotenv"
 )
 
@@ -27,8 +26,8 @@ func main() {
 		log.Fatal("Failed to connect to MongoDB:", err)
 	}
 
-	// Setup Gin router — explicitly typed to use the gin import
-	var router *gin.Engine = routes.SetupRouter()  // ← This line fixes the "imported and not used" error
+	// Setup Gin router using the routes package
+	router := routes.SetupRouter()
 
 	// === STATIC FILE SERVING ===
 	router.Static("/asset", "../frontend/asset")
