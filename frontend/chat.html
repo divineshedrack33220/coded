@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coded | Chat Conversation</title>
+  <link rel="icon" type="image/png" href="asset/logo.jpeg">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000000;
+      color: #FFFFFF;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: #000000;
+      border-bottom: 1px solid #1F1F1F;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+    .back-icon svg { width: 24px; height: 24px; fill: #FFFFFF; }
+    .header-center { display: flex; align-items: center; gap: 12px; margin-left: 8px; }
+    .user-avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: #2A2A2A; }
+    .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .user-info { display: flex; flex-direction: column; }
+    .username { font-size: 18px; font-weight: 600; }
+    .online-status { font-size: 12px; color: #00FF00; }
+    .header-right { display: flex; gap: 16px; }
+    .header-icon svg { width: 24px; height: 24px; fill: #FFFFFF; cursor: pointer; }
+    .message-area { 
+      flex: 1; 
+      overflow-y: auto; 
+      padding: 16px;
+      padding-bottom: 100px;
+      display: flex; 
+      flex-direction: column; 
+      gap: 8px; 
+      position: relative;
+    }
+    .pull-to-refresh {
+      position: absolute;
+      top: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: top 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      z-index: 10;
+    }
+    .pull-arrow {
+      width: 24px;
+      height: 24px;
+      fill: #8E8E8E;
+      transition: transform 0.3s ease;
+    }
+    .pull-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #8E8E8E;
+      border-top: 3px solid #FFFFFF;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .message {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 20px;
+      font-size: 16px;
+      line-height: 1.4;
+      position: relative;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .incoming { align-self: flex-start; background: #1F1F1F; color: #FFFFFF; }
+    .outgoing { align-self: flex-end; background: #FFFFFF; color: #000000; }
+    .message-timestamp { font-size: 12px; color: #8E8E8E; margin-top: 4px; text-align: right; }
+    .read-receipt { font-size: 12px; color: #8e8e8e65; margin-top: 4px; text-align: right; }
+    .system-message { text-align: center; font-size: 14px; color: #8E8E8E; margin: 16px 0; }
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 16px;
+      background: #1F1F1F;
+      border-radius: 20px;
+      max-width: 100px;
+      align-self: flex-start;
+      margin-bottom: 8px;
+      animation: typing 1s infinite;
+    }
+    .dot { width: 6px; height: 6px; background: #A0A0A0; border-radius: 50%; animation: bounce 0.8s infinite alternate; }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+    .input-bar {
+      display: flex;
+      flex-direction: column;
+      padding: 12px 16px;
+      background: #1F1F1F;
+      border-top: 1px solid #2A2A2A;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+    }
+    .preview-area {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 8px 0;
+      max-width: 100%;
+    }
+    .preview-item {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      flex-shrink: 0;
+    }
+    .preview-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 12px;
+    }
+    .preview-remove {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 24px;
+      height: 24px;
+      background: rgba(0,0,0,0.7);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .input-container {
+      display: flex;
+      align-items: center;
+      background: #2A2A2A;
+      border-radius: 24px;
+      padding: 8px 12px;
+    }
+    .input-icon svg { width: 24px; height: 24px; fill: #A0A0A0; margin-right: 12px; cursor: pointer; }
+    .message-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #FFFFFF;
+      font-size: 16px;
+      outline: none;
+      resize: none;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .message-input::placeholder { color: #8E8E8E; }
+    .send-icon svg { width: 24px; height: 24px; fill: #FFFFFF; cursor: pointer; margin-left: 12px; }
+    .emoji-modal {
+      position: fixed;
+      bottom: 80px;
+      left: 16px;
+      right: 16px;
+      background: #1F1F1F;
+      border-radius: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 200;
+      padding: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      display: none;
+    }
+    .emoji-modal.show { display: block; }
+    .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px; }
+    .emoji-item { font-size: 32px; cursor: pointer; text-align: center; transition: transform 0.1s; }
+    .emoji-item:hover { transform: scale(1.2); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-title { font-size: 18px; font-weight: 600; }
+    .close-modal { cursor: pointer; font-size: 24px; }
+    .chat-image {
+      max-width: 100%;
+      border-radius: 12px;
+      margin-top: 8px;
+      display: block;
+      position: relative;
+    }
+    .image-wrapper {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+    }
+    .image-loading {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+    }
+    .image-loading::after {
+      content: '';
+      width: 32px;
+      height: 32px;
+      border: 3px solid #FFFFFF;
+      border-top: 3px solid transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    /* Shimmer Loading */
+    .shimmer-wrapper {
+      position: absolute;
+      inset: 0;
+      padding: 16px;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.4s ease;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .shimmer-wrapper.hidden { opacity: 0; visibility: hidden; }
+
+    .shimmer-message {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 20px;
+      animation: pulse 2s infinite ease-in-out;
+    }
+    .shimmer-incoming { align-self: flex-start; background: #1F1F1F; }
+    .shimmer-outgoing { align-self: flex-end; background: #2A2A2A; }
+
+    .shimmer-line { height: 16px; background: #2A2A2A; border-radius: 8px; margin: 6px 0; }
+    .shimmer-line.short { width: 60%; }
+    .shimmer-line.long { width: 90%; }
+
+    .shimmer-img { height: 200px; width: 100%; background: #2A2A2A; border-radius: 12px; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(31, 31, 31, 0.95);
+      color: #FFFFFF;
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 200;
+      max-width: 90%;
+      text-align: center;
+      backdrop-filter: blur(8px);
+    }
+    #toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(-8px);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left" onclick="history.back()">
+      <div class="back-icon">
+        <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+      </div>
+      <div class="header-center">
+        <div class="user-avatar">
+          <img id="partner-avatar" src="" alt="Partner">
+        </div>
+        <div class="user-info">
+          <div id="partner-name" class="username">Loading...</div>
+          <div id="partner-status" class="online-status">Offline</div>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <div class="message-area" id="message-area">
+    <!-- Pull to refresh -->
+    <div class="pull-to-refresh" id="pull-to-refresh">
+      <svg class="pull-arrow" viewBox="0 0 24 24"><path d="M12 8l-6 6h4v8h4v-8h4z"/></svg>
+      <div class="pull-spinner"></div>
+    </div>
+
+    <!-- Shimmer skeleton -->
+    <div class="shimmer-wrapper" id="shimmer">
+      <div class="shimmer-message shimmer-incoming">
+        <div class="shimmer-line long"></div>
+        <div class="shimmer-line short"></div>
+      </div>
+      <div class="shimmer-message shimmer-outgoing">
+        <div class="shimmer-line long"></div>
+      </div>
+      <div class="shimmer-message shimmer-incoming">
+        <div class="shimmer-img"></div>
+      </div>
+      <div class="shimmer-message shimmer-incoming">
+        <div class="shimmer-line long"></div>
+        <div class="shimmer-line long"></div>
+        <div class="shimmer-line short"></div>
+      </div>
+      <div class="shimmer-message shimmer-outgoing">
+        <div class="shimmer-line short"></div>
+      </div>
+      <div class="shimmer-message shimmer-incoming">
+        <div class="shimmer-line long"></div>
+      </div>
+      <div class="shimmer-message shimmer-outgoing">
+        <div class="shimmer-img"></div>
+      </div>
+      <div class="shimmer-message shimmer-incoming">
+        <div class="shimmer-line short"></div>
+      </div>
+      <div class="shimmer-message shimmer-outgoing">
+        <div class="shimmer-line long"></div>
+        <div class="shimmer-line short"></div>
+      </div>
+      <div class="shimmer-message shimmer-incoming">
+        <div class="shimmer-line long"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="typing-indicator" id="typing-indicator" style="display: none;">
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+  </div>
+
+  <div class="emoji-modal" id="emoji-modal">
+    <div class="modal-header">
+      <div class="modal-title">Emoji Picker</div>
+      <div class="close-modal" id="close-modal">×</div>
+    </div>
+    <div class="emoji-grid" id="emoji-grid"></div>
+  </div>
+
+  <div class="input-bar">
+    <div class="preview-area" id="preview-area"></div>
+    <div class="input-container">
+      <div class="input-icon">
+        <input type="file" id="photo-input" accept="image/*" multiple style="display: none;">
+        <svg viewBox="0 0 24 24" id="photo-button" style="cursor: pointer; fill: #FFFFFF;">
+          <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+        </svg>
+      </div>
+      <div class="input-icon">
+        <svg viewBox="0 0 24 24" id="emoji-button" style="cursor: pointer;">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18 c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-3-9 c.83 0 1.5-.67 1.5-1.5S9.83 8 9 8s-1.5.67-1.5 1.5S8.17 11 9 11zm6 0 c.83 0 1.5-.67 1.5-1.5S15.83 8 15 8s-1.5.67-1.5 1.5S14.17 11 15 11zm-6.5 2 h7a3.5 3.5 0 0 1-7 0z"/>
+        </svg>
+      </div>
+      <textarea class="message-input" id="message-input" placeholder="Message…" rows="1"></textarea>
+      <div class="send-icon" id="send-icon">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Please log in first.');
+      window.location.href = 'login.html';
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlId = urlParams.get('id');
+    if (!urlId) {
+      alert('No ID provided');
+      history.back();
+    }
+
+    const messageArea = document.getElementById('message-area');
+    const pullToRefresh = document.getElementById('pull-to-refresh');
+    const pullArrow = pullToRefresh.querySelector('.pull-arrow');
+    const pullSpinner = pullToRefresh.querySelector('.pull-spinner');
+    const messageInput = document.getElementById('message-input');
+    const sendIcon = document.getElementById('send-icon');
+    const photoButton = document.getElementById('photo-button');
+    const photoInput = document.getElementById('photo-input');
+    const previewArea = document.getElementById('preview-area');
+    const toast = document.getElementById('toast');
+    const partnerNameEl = document.getElementById('partner-name');
+    const partnerAvatarEl = document.getElementById('partner-avatar');
+    const partnerStatusEl = document.getElementById('partner-status');
+    const typingIndicator = document.getElementById('typing-indicator');
+    const shimmer = document.getElementById('shimmer');
+
+    let currentUserId = null;
+    let partnerUserId = null;
+    let chatId = null;
+    let pendingImages = [];
+    let isRefreshing = false;
+    let touchStartY = 0;
+    let pullDistance = 0;
+    let isLoadingMessages = false;
+
+    function showToast(message, duration = 2500) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), duration);
+    }
+
+    function parseJwt(token) {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload).userId || null;
+      } catch (e) {
+        console.error('Failed to parse JWT:', e);
+        return null;
+      }
+    }
+
+    currentUserId = parseJwt(token);
+
+    // Pull to refresh
+    messageArea.addEventListener('touchstart', (e) => {
+      if (messageArea.scrollTop <= 0) {
+        touchStartY = e.touches[0].clientY;
+      }
+    });
+
+    messageArea.addEventListener('touchmove', (e) => {
+      if (messageArea.scrollTop > 0 || isRefreshing) return;
+
+      pullDistance = e.touches[0].clientY - touchStartY;
+
+      if (pullDistance > 0) {
+        pullToRefresh.style.top = Math.min(pullDistance - 60, 60) + 'px';
+
+        if (pullDistance > 100) {
+          pullArrow.style.transform = 'rotate(180deg)';
+        } else {
+          pullArrow.style.transform = 'rotate(0deg)';
+        }
+      }
+    });
+
+    messageArea.addEventListener('touchend', () => {
+      if (pullDistance > 100 && !isRefreshing) {
+        isRefreshing = true;
+        pullArrow.style.display = 'none';
+        pullSpinner.style.display = 'block';
+        pullToRefresh.style.top = '10px';
+
+        loadMessages().finally(() => {
+          setTimeout(() => {
+            pullToRefresh.style.top = '-60px';
+            pullArrow.style.display = 'block';
+            pullSpinner.style.display = 'none';
+            pullArrow.style.transform = 'rotate(0deg)';
+            isRefreshing = false;
+          }, 300);
+        });
+      } else {
+        pullToRefresh.style.top = '-60px';
+      }
+
+      pullDistance = 0;
+    });
+
+    photoInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      files.forEach(file => {
+        if (!file.type.startsWith('image/')) return;
+
+        pendingImages.push(file);
+
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const item = document.createElement('div');
+          item.className = 'preview-item';
+          item.innerHTML = `
+            <img src="${ev.target.result}">
+            <div class="preview-remove">×</div>
+          `;
+          item.querySelector('.preview-remove').onclick = () => {
+            pendingImages = pendingImages.filter(f => f !== file);
+            item.remove();
+            updateSendIcon();
+          };
+          previewArea.appendChild(item);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      e.target.value = '';
+      updateSendIcon();
+    });
+
+    photoButton.addEventListener('click', () => photoInput.click());
+
+    function updateSendIcon() {
+      if (messageInput.value.trim() || pendingImages.length > 0) {
+        sendIcon.style.fill = '#FFFFFF';
+        sendIcon.style.cursor = 'pointer';
+      } else {
+        sendIcon.style.fill = '#A0A0A0';
+        sendIcon.style.cursor = 'default';
+      }
+    }
+
+    messageInput.addEventListener('input', updateSendIcon);
+
+    async function sendAll() {
+      const text = messageInput.value.trim();
+
+      if (!text && pendingImages.length === 0) return;
+
+      if (!chatId && partnerUserId) {
+        await loadMessages();
+      }
+
+      if (!chatId) {
+        showToast('Cannot send message');
+        return;
+      }
+
+      if (text) {
+        try {
+          await fetch('https://codedsignal.org/message', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ chatId, content: text, type: 'text' })
+          });
+        } catch (err) {
+          showToast('Failed to send text');
+          console.error(err);
+          return;
+        }
+      }
+
+      if (pendingImages.length > 0) {
+        showToast(`Uploading ${pendingImages.length} image${pendingImages.length > 1 ? 's' : ''}...`);
+
+        let successCount = 0;
+        for (const file of pendingImages) {
+          const formData = new FormData();
+          formData.append('photo', file);
+
+          try {
+            const uploadRes = await fetch('https://codedsignal.org/upload-photo', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+              body: formData
+            });
+            if (!uploadRes.ok) throw new Error();
+
+            const { url } = await uploadRes.json();
+
+            await fetch('https://codedsignal.org/message', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ chatId, content: url, type: 'image' })
+            });
+            successCount++;
+          } catch (err) {
+            console.error(err);
+          }
+        }
+
+        if (successCount > 0) {
+          showToast(`${successCount} image${successCount > 1 ? 's' : ''} sent!`);
+        } else {
+          showToast('Failed to send images');
+        }
+      }
+
+      messageInput.value = '';
+      previewArea.innerHTML = '';
+      pendingImages = [];
+      updateSendIcon();
+      loadMessages();
+    }
+
+    sendIcon.addEventListener('click', () => {
+      if (messageInput.value.trim() || pendingImages.length > 0) {
+        sendAll();
+      }
+    });
+
+    messageInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (messageInput.value.trim() || pendingImages.length > 0) {
+          sendAll();
+        }
+      }
+    });
+
+    async function loadChatHeader() {
+      try {
+        const chatRes = await fetch(`https://codedsignal.org/chats/${urlId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (chatRes.ok) {
+          const chat = await chatRes.json();
+          chatId = chat.id;
+          const partner = chat.partner;
+          partnerUserId = partner.id;
+
+          partnerNameEl.textContent = partner.name || 'Unknown';
+          partnerAvatarEl.src = partner.avatar || fallbackImage;
+          partnerStatusEl.textContent = partner.status === 'available' ? 'Online' : 'Offline';
+          partnerStatusEl.style.color = partner.status === 'available' ? '#00FF00' : '#8E8E8E';
+          return;
+        }
+
+        if (chatRes.status === 404) {
+          const userRes = await fetch(`https://codedsignal.org/users/${urlId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!userRes.ok) throw new Error('User not found');
+
+          const partner = await userRes.json();
+          partnerUserId = partner.id || urlId;
+          chatId = null;
+
+          partnerNameEl.textContent = partner.name || 'Unknown';
+          partnerAvatarEl.src = partner.avatar || fallbackImage;
+          partnerStatusEl.textContent = partner.status === 'available' ? 'Online' : 'Offline';
+          partnerStatusEl.style.color = partner.status === 'available' ? '#00FF00' : '#8E8E8E';
+          return;
+        }
+
+        throw new Error('Failed to load');
+      } catch (err) {
+        console.error('Header load error:', err);
+        partnerNameEl.textContent = 'Error';
+        partnerAvatarEl.src = fallbackImage;
+      }
+    }
+
+    async function loadMessages() {
+      if (isLoadingMessages) return;
+      isLoadingMessages = true;
+
+      try {
+        // Show shimmer
+        shimmer.classList.remove('hidden');
+
+        if (!chatId && partnerUserId) {
+          try {
+            const createRes = await fetch('https://codedsignal.org/chats', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ participants: [partnerUserId] })
+            });
+            if (createRes.ok) {
+              const data = await createRes.json();
+              chatId = data.id;
+            }
+          } catch (err) {
+            console.error('Failed to create chat:', err);
+          }
+        }
+
+        let messages = [];
+        if (chatId) {
+          try {
+            const res = await fetch(`https://codedsignal.org/messages/${chatId}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error(`Failed to load messages: ${res.status}`);
+            messages = await res.json() || [];
+          } catch (err) {
+            console.error('Messages load error:', err);
+            messages = [];
+          }
+        }
+
+        // Hide shimmer
+        shimmer.classList.add('hidden');
+
+        // Clear old content but keep pull-to-refresh
+        const pullElement = messageArea.querySelector('#pull-to-refresh');
+        messageArea.innerHTML = '';
+        messageArea.appendChild(pullElement);
+
+        if (messages.length === 0) {
+          messageArea.innerHTML += '<div class="system-message">Start the conversation</div>';
+          messageArea.scrollTop = messageArea.scrollHeight;
+          return;
+        }
+
+        messageArea.innerHTML += '<div class="system-message">Today</div>';
+
+        messages.forEach(msg => {
+          const isOutgoing = msg.senderId === currentUserId;
+          const messageDiv = document.createElement('div');
+          messageDiv.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
+
+          let contentHTML = '';
+          if (msg.type === 'text') {
+            contentHTML = msg.content;
+          } else if (msg.type === 'image') {
+            contentHTML = `
+              <div class="image-wrapper">
+                <img class="chat-image" src="${msg.content}" alt="Image">
+                <div class="image-loading"></div>
+              </div>
+            `;
+          } else {
+            contentHTML = '[Media]';
+          }
+
+          messageDiv.innerHTML = `
+            ${contentHTML}
+            <div class="message-timestamp">${formatTimestamp(msg.createdAt)}</div>
+            ${isOutgoing ? `<div class="read-receipt">${msg.isRead ? '✓✓ Read' : '✓ Sent'}</div>` : ''}
+          `;
+          messageArea.appendChild(messageDiv);
+
+          const img = messageDiv.querySelector('.chat-image');
+          if (img) {
+            img.addEventListener('load', function() {
+              const wrapper = this.parentElement;
+              const loader = wrapper.querySelector('.image-loading');
+              if (loader) loader.remove();
+            });
+            img.addEventListener('error', function() {
+              const wrapper = this.parentElement;
+              const loader = wrapper.querySelector('.image-loading');
+              if (loader) loader.remove();
+              this.src = fallbackImage;
+            });
+          }
+        });
+
+        messageArea.scrollTop = messageArea.scrollHeight;
+      } finally {
+        isLoadingMessages = false;
+      }
+    }
+
+    function formatTimestamp(unix) {
+      if (!unix) return 'Just now';
+      const date = new Date(unix * 1000);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    const emojiButton = document.getElementById('emoji-button');
+    const emojiModal = document.getElementById('emoji-modal');
+    const closeModal = document.getElementById('close-modal');
+    const emojiGrid = document.getElementById('emoji-grid');
+
+    const emojis = [
+      '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆',
+      '😉', '😊', '😋', '😎', '😍', '😘', '🥰', '😇',
+    ];
+
+    emojis.forEach(emoji => {
+      const span = document.createElement('span');
+      span.className = 'emoji-item';
+      span.textContent = emoji;
+      span.addEventListener('click', () => {
+        messageInput.value += emoji;
+        messageInput.focus();
+        emojiModal.classList.remove('show');
+      });
+      emojiGrid.appendChild(span);
+    });
+
+    emojiButton.addEventListener('click', () => emojiModal.classList.toggle('show'));
+    closeModal.addEventListener('click', () => emojiModal.classList.remove('show'));
+    document.addEventListener('click', e => {
+      if (!emojiModal.contains(e.target) && e.target !== emojiButton) {
+        emojiModal.classList.remove('show');
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      const userAvatar = e.target.closest('.user-avatar');
+      if (userAvatar) {
+        if (partnerUserId && partnerUserId !== currentUserId) {
+          window.location.href = `view-profile.html?id=${partnerUserId}`;
+        }
+      }
+    });
+
+    async function init() {
+      await loadChatHeader();
+      await loadMessages();
+      setInterval(loadMessages, 5000);
+      updateSendIcon();
+    }
+
+    init();
+  </script>
+</body>
+</html>
