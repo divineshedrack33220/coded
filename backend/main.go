@@ -12,6 +12,7 @@ import (
 	"coded/database"
 	"coded/routes"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
@@ -25,6 +26,9 @@ func main() {
 	if err := database.ConnectMongo(); err != nil {
 		log.Fatal("Failed to connect to MongoDB:", err)
 	}
+
+	// Set Gin to release mode
+	gin.SetMode(gin.ReleaseMode)
 
 	// Setup Gin router using the routes package
 	router := routes.SetupRouter()
