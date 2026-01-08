@@ -1,3 +1,5 @@
+// handlers/user.go  (Replace the entire content of user.go with this - NO GetFeed here)
+
 package handlers
 
 import (
@@ -36,7 +38,7 @@ type OnboardingData struct {
 
 // Helper: generate a unique 8-character referral code
 func generateReferralCode() (string, error) {
-	b := make([]byte, 4) // 4 bytes → 8 hex chars
+	b := make([]byte, 4)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
@@ -48,7 +50,6 @@ func GetUser(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		// Invalid ID format – still return fallback instead of 400 to avoid breaking frontend
 		log.Println("Invalid user ID format:", userIDStr)
 		c.JSON(http.StatusOK, gin.H{
 			"id":         userIDStr,
@@ -98,7 +99,6 @@ func GetUser(c *gin.Context) {
 		return
 	}
 
-	// Return full user data if found
 	c.JSON(http.StatusOK, user)
 }
 
@@ -137,7 +137,6 @@ func UpdateMyProfile(c *gin.Context) {
 		}
 	}
 
-	// Map fields to update
 	if data.Name != "" {
 		update["$set"].(bson.M)["name"] = data.Name
 	}
@@ -170,7 +169,6 @@ func UpdateMyProfile(c *gin.Context) {
 		update["$set"].(bson.M)["username"] = username
 	}
 
-	// Avatar upload (multipart only)
 	avatarFile, _, err := c.Request.FormFile("avatar")
 	if err == nil {
 		defer avatarFile.Close()
@@ -258,7 +256,6 @@ func UploadPhoto(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"url": uploadResult.SecureURL})
 }
 
-// Updated GetMyProfile – auto-generates referral code if missing
 func GetMyProfile(c *gin.Context) {
 	userIDStr := c.GetString("userId")
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
@@ -283,7 +280,6 @@ func GetMyProfile(c *gin.Context) {
 		return
 	}
 
-	// Auto-generate referral code if it doesn't exist
 	if user.ReferralCode == "" {
 		var code string
 		for {
@@ -292,7 +288,6 @@ func GetMyProfile(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate referral code"})
 				return
 			}
-			// Ensure uniqueness
 			count, _ := usersColl.CountDocuments(ctx, bson.M{"referralCode": code})
 			if count == 0 {
 				break
@@ -310,7 +305,6 @@ func GetMyProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// New endpoint: GET /me/referral
 func GetReferral(c *gin.Context) {
 	userIDStr := c.GetString("userId")
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
@@ -336,8 +330,7 @@ func GetReferral(c *gin.Context) {
 		return
 	}
 
-	// Change this to your production domain later
-	baseURL := "http://localhost:8080"
+	baseURL := "https://codedsignal.org/"
 	referralURL := baseURL + "/register?ref=" + user.ReferralCode
 
 	c.JSON(http.StatusOK, gin.H{
