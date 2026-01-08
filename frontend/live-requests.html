@@ -386,7 +386,7 @@
 
       async function loadStatus() {
         try {
-          const res = await fetch('http://localhost:8080/me', {
+          const res = await fetch('https://codedsignal.org/me', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (!res.ok) throw new Error('Failed to load profile');
@@ -413,7 +413,7 @@
         updateStatusUI();
         const newStatus = statuses[currentStatusIndex].value;
         try {
-          await fetch('http://localhost:8080/me/status', {
+          await fetch('https://codedsignal.org/me/status', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ status: newStatus })
@@ -434,7 +434,7 @@
         feedEl.innerHTML = '';
 
         try {
-          const res = await fetch('http://localhost:8080/feed', {
+          const res = await fetch('https://codedsignal.org/feed', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (!res.ok) throw new Error('Failed to load feed');
@@ -454,7 +454,7 @@
 
           let favorites = [];
           try {
-            const favRes = await fetch('http://localhost:8080/favorites', {
+            const favRes = await fetch('https://codedsignal.org/favorites', {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             if (favRes.ok) {
@@ -545,7 +545,7 @@
 
         if (btn.classList.contains('accept')) {
           try {
-            const res = await fetch('http://localhost:8080/chats', {
+            const res = await fetch('https://codedsignal.org/chats', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ participants: [userId] })
@@ -566,7 +566,7 @@
 
           try {
             const method = isCurrentlyFavorited ? 'DELETE' : 'POST';
-            const res = await fetch('http://localhost:8080/favorite', {
+            const res = await fetch('https://codedsignal.org/favorite', {
               method,
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ targetUserId: userId })
@@ -652,7 +652,7 @@
 
         let vapidPublicKey;
         try {
-          const res = await fetch('http://localhost:8080/vapid-public-key');
+          const res = await fetch('https://codedsignal.org/vapid-public-key');
           if (!res.ok) {
             throw new Error(`HTTP ${res.status}`);
           }
@@ -669,7 +669,7 @@
         });
 
         try {
-          await fetch('http://localhost:8080/subscribe', {
+          await fetch('https://codedsignal.org/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(subscription)
@@ -695,4 +695,5 @@
     })();
   </script>
 </body>
+
 </html>
