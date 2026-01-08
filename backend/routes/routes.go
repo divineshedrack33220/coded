@@ -28,6 +28,7 @@ func SetupRouter() *gin.Engine {
 	// Public routes (no auth required)
 	router.POST("/signup", handlers.Signup)
 	router.POST("/login", handlers.Login)
+	router.GET("/vapid-public-key", handlers.GetVapidPublicKey)
 
 	// Protected routes group
 	protected := router.Group("/")
@@ -67,6 +68,9 @@ func SetupRouter() *gin.Engine {
 
 	// Referral (optional but useful)
 	protected.GET("/me/referral", handlers.GetReferral)
+
+	// Push subscriptions
+	protected.POST("/subscribe", handlers.SubscribePush)
 
 	return router
 }
