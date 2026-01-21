@@ -1,34 +1,34 @@
-# Stage 1: Build the Go binary
+# Stage 1: Build the Go app
 FROM golang:1.23-alpine AS builder
 
-# Set workdir to source
+# Work in a temp dir
 WORKDIR /src
 
-# Copy go.mod and go.sum (go.sum optional — skips if missing)
-COPY backend/go.mod ./
-COPY backend/go.sum ./  # Safe: no error if absent
+# Copy go.mod & go.sum from backend/ subfolder
+COPY backend/go.mod backend/go.sum ./
 
-# Grab deps for cache
+# Download dependencies (caching layer)
 RUN go mod download
 
-# Copy all backend code
+# Copy the entire backend source code
 COPY backend/ ./
 
-# Build static binary — points to your main.go in backend/
-# (tweaks: CGO off for tiny size, linux target for containers)
+# Build the binary from main.go in this dir
+# -o /app/server = output binary name/path
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./main.go
 
-# Stage 2: Super small runtime (no OS bloat)
+# Stage 2: Very small final image
 FROM scratch
 
-# Just the binary
+# Copy only the compiled binary
 COPY --from=builder /app/server /server
 
-# For HTTPS outbound (e.g. API calls) — uncomment if needed
+# If you need outbound HTTPS (Google APIs, etc.), uncomment:
 # COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Your app's port (check main.go — e.g. :8080 or :3000?)
+# Port your Gin app listens on (check main.go for r.Run(":xxxx"))
+# Default Gin is :8080 — change if yours is different (e.g. :3000)
 EXPOSE 8080
 
-# Fire it up
+# Run the app
 CMD ["/server"]
