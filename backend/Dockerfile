@@ -1,34 +1,34 @@
 # Stage 1: Build the Go binary
 FROM golang:1.23-alpine AS builder
 
+# Set workdir to source
 WORKDIR /src
 
-# Copy go.mod (go.sum optional, but you have it now → good)
-COPY backend/go.mod backend/go.sum ./
+# Copy go.mod and go.sum (go.sum optional — skips if missing)
+COPY backend/go.mod ./
+COPY backend/go.sum ./  # Safe: no error if absent
 
-# Download dependencies
+# Grab deps for cache
 RUN go mod download
 
-# Copy all backend source code
+# Copy all backend code
 COPY backend/ ./
 
-# Build the static binary
-# Adjust path if your main is not directly in backend/main.go
-# (e.g. ./cmd/main if using cmd/ structure)
+# Build static binary — points to your main.go in backend/
+# (tweaks: CGO off for tiny size, linux target for containers)
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./main.go
 
-# Stage 2: Minimal runtime image (scratch = super small)
+# Stage 2: Super small runtime (no OS bloat)
 FROM scratch
 
-# Copy only the binary
+# Just the binary
 COPY --from=builder /app/server /server
 
-# If your app makes outbound HTTPS calls (e.g. to APIs), uncomment this:
+# For HTTPS outbound (e.g. API calls) — uncomment if needed
 # COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Tell Docker what port your app listens on (check your main.go for the actual one!)
-# Common defaults: 8080, 3000, 80 — change if needed
+# Your app's port (check main.go — e.g. :8080 or :3000?)
 EXPOSE 8080
 
-# Run the app
+# Fire it up
 CMD ["/server"]
