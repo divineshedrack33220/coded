@@ -1,0 +1,7 @@
+app
+*.exe
+vendor/
+.env
+.DS_Store
+go.work
+go.work.sum
