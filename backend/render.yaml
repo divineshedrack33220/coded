@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: instaping-backend
+    env: go
+    buildCommand: go build -o app
+    startCommand: ./app
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: GIN_MODE
+        value: "release"
+      - key: JWT_SECRET
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+    autoDeploy: true
