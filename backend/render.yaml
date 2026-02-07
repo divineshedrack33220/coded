@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: instaping-backend
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: PORT
+        value: 8080
+      - key: GIN_MODE
+        value: release
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
