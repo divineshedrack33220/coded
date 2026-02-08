@@ -1071,355 +1071,394 @@ body {
 
   <div id="toast"></div>
 <script>
-// ==================== WEBSOCKET MANAGER ====================
-class WebSocketManager {
+// ==================== POLLING MANAGER (REPLACES WEBSOCKET) ====================
+class PollingManager {
     constructor() {
-        this.socket = null;
-        this.reconnectInterval = 3000;
-        this.maxReconnectAttempts = 5;
-        this.reconnectAttempts = 0;
-        this.eventHandlers = new Map();
         this.isConnected = false;
-        this.shouldReconnect = true;
+        this.pollingInterval = null;
+        this.pollingIntervalMs = 10000; // Poll every 10 seconds
+        this.lastUpdateTime = 0;
+        this.lastFeedCheckTime = 0;
+        this.favorites = [];
+        this.feedUpdateListeners = [];
+        this.statusUpdateListeners = [];
+        this.favoriteUpdateListeners = [];
+        this.nearbyUserListeners = [];
         this.connectedUsers = new Set();
     }
 
     connect() {
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            console.log('WebSocket already connected');
-            return;
-        }
-
-        // Get token from localStorage
-        const token = localStorage.getItem('token');
-        if (!token) {
-            console.warn('No token found, WebSocket connection deferred');
-            return;
-        }
-
-        // Create WebSocket URL with auth token
-        const wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
-        console.log('Connecting to WebSocket:', wsUrl);
+        console.log('📡 Starting polling mode');
+        this.isConnected = true;
         
-        try {
-            this.socket = new WebSocket(wsUrl);
-            
-            this.socket.onopen = () => {
-                console.log('WebSocket connected successfully');
-                this.isConnected = true;
-                this.reconnectAttempts = 0;
-                this.emit('connected');
-                
-                // Show subtle notification
-                showToast('🎯 Live updates connected', 1500);
-                
-                // Send initial subscriptions
-                setTimeout(() => {
-                    this.send({
-                        type: 'subscribe',
-                        channel: 'feed_updates'
-                    });
-                    
-                    this.send({
-                        type: 'subscribe', 
-                        channel: 'new_requests'
-                    });
-                    
-                    this.send({
-                        type: 'subscribe',
-                        channel: 'user_status'
-                    });
-                }, 500);
-            };
+        // Initial load of favorites
+        this.loadFavorites();
+        
+        // Start polling
+        this.startPolling();
+        
+        // Show connection notification
+        showToast('📡 Live updates active (polling mode)');
+        
+        return true;
+    }
 
-            this.socket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('📡 WebSocket message:', data);
-                    
-                    // Handle different message types
-                    this.handleMessage(data);
-                } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
-                }
-            };
-
-            this.socket.onclose = (event) => {
-                console.log('WebSocket disconnected:', event.code, event.reason);
-                this.isConnected = false;
-                this.emit('disconnected');
-                
-                // Show disconnected notification
-                showToast('🔌 Live updates disconnected', 1500);
-                
-                // Attempt reconnect if not intentionally closed
-                if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-                    setTimeout(() => this.reconnect(), this.reconnectInterval);
-                }
-            };
-
-            this.socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                this.emit('error', error);
-            };
-
-        } catch (error) {
-            console.error('Failed to create WebSocket:', error);
-            setTimeout(() => this.reconnect(), this.reconnectInterval);
+    startPolling() {
+        if (!this.pollingInterval) {
+            console.log(`📡 Starting polling with ${this.pollingIntervalMs}ms interval`);
+            this.pollingInterval = setInterval(async () => {
+                await this.pollForUpdates();
+            }, this.pollingIntervalMs);
         }
     }
 
-    reconnect() {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('Max reconnection attempts reached');
-            return;
+    stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+    }
+
+    async loadFavorites() {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await fetch(`${API_BASE_URL}/favorites`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                this.favorites = await response.json();
+                console.log('⭐ Favorites loaded:', this.favorites.length);
+            }
+        } catch (error) {
+            console.log('Failed to load favorites:', error.message);
+        }
+    }
+
+    async pollForUpdates() {
+        try {
+            await this.checkFeedUpdates();
+            await this.checkUserStatuses();
+            await this.checkFavoriteUpdates();
+        } catch (error) {
+            console.log('📡 Polling error:', error.message);
+        }
+    }
+
+    async checkFeedUpdates() {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await fetch(`${API_BASE_URL}/feed?since=${this.lastFeedCheckTime}&limit=20`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const newPosts = await response.json();
+                
+                if (newPosts.length > 0) {
+                    console.log('🔄 Polling found', newPosts.length, 'new/updated posts');
+                    
+                    // Update last check time
+                    this.lastFeedCheckTime = Math.floor(Date.now() / 1000);
+                    
+                    // Process each post
+                    newPosts.forEach(post => {
+                        this.processNewPost(post);
+                    });
+                    
+                    // Notify listeners
+                    this.feedUpdateListeners.forEach(listener => {
+                        try {
+                            listener(newPosts);
+                        } catch (err) {
+                            console.error('Error in feed update listener:', err);
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.log('Feed polling error:', error.message);
+        }
+    }
+
+    async checkUserStatuses() {
+        // Status updates are handled via separate API calls
+        return;
+    }
+
+    async checkFavoriteUpdates() {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await fetch(`${API_BASE_URL}/favorites`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const newFavorites = await response.json();
+                
+                // Check for changes
+                const oldIds = new Set(this.favorites.map(f => f.targetUserId));
+                const newIds = new Set(newFavorites.map(f => f.targetUserId));
+                
+                // Find added favorites
+                const added = newFavorites.filter(f => !oldIds.has(f.targetUserId));
+                // Find removed favorites
+                const removed = this.favorites.filter(f => !newIds.has(f.targetUserId));
+                
+                if (added.length > 0 || removed.length > 0) {
+                    console.log('⭐ Favorite changes detected:', { added: added.length, removed: removed.length });
+                    this.favorites = newFavorites;
+                    
+                    // Notify listeners
+                    this.favoriteUpdateListeners.forEach(listener => {
+                        try {
+                            listener({ added, removed });
+                        } catch (err) {
+                            console.error('Error in favorite update listener:', err);
+                        }
+                    });
+                    
+                    // Update UI for favorite changes
+                    this.updateFavoriteUI(added, removed);
+                }
+            }
+        } catch (error) {
+            console.log('Favorite polling error:', error.message);
+        }
+    }
+
+    processNewPost(post) {
+        // Check if post already exists
+        const existingCard = document.querySelector(`[data-post-id="${post.id}"]`);
+        const currentUserId = parseJwt(localStorage.getItem('token'));
+        
+        // Skip own posts
+        if (post.userId === currentUserId) return;
+        
+        if (existingCard) {
+            // Update existing post
+            this.updateExistingPost(post, existingCard);
+        } else {
+            // Add new post
+            this.addNewPost(post);
+        }
+    }
+
+    updateExistingPost(post, card) {
+        // Update content if changed
+        if (post.content && post.content !== card.querySelector('.request-text')?.textContent) {
+            const textEl = card.querySelector('.request-text');
+            if (textEl) {
+                textEl.textContent = post.content;
+                // Highlight update
+                textEl.style.backgroundColor = '#2A2A2A';
+                setTimeout(() => {
+                    textEl.style.backgroundColor = '';
+                }, 1000);
+            }
         }
         
-        this.reconnectAttempts++;
-        console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
-        this.connect();
+        // Update timestamp
+        const timeEl = card.querySelector('.time-rating span');
+        if (timeEl) {
+            timeEl.textContent = 'Updated';
+            timeEl.style.color = '#FFFF00';
+            setTimeout(() => {
+                timeEl.textContent = formatTime(post.updatedAt || post.createdAt);
+                timeEl.style.color = '';
+            }, 2000);
+        }
+    }
+
+    addNewPost(post) {
+        console.log('➕ Adding new post:', post.id);
+        
+        // Show notification for new post
+        const postUser = post.user || {};
+        showToast(`📢 New request from ${postUser.name || 'Someone nearby'}`);
+        
+        // Add to feed
+        addRequestToFeed(post);
+        
+        // Play subtle sound
+        playNotificationSound();
+    }
+
+    updateFavoriteUI(added, removed) {
+        // Update favorite buttons in the feed
+        const cards = document.querySelectorAll('.request-card');
+        
+        cards.forEach(card => {
+            const userId = card.dataset.userId;
+            const favoriteBtn = card.querySelector('.favorite');
+            
+            if (!userId || !favoriteBtn) return;
+            
+            // Check if this user is now favorited
+            const isNowFavorited = added.some(f => f.targetUserId === userId);
+            const wasRemoved = removed.some(f => f.targetUserId === userId);
+            
+            if (isNowFavorited && !favoriteBtn.classList.contains('favorited')) {
+                favoriteBtn.classList.add('favorited');
+                favoriteBtn.title = 'Remove from favorites';
+                favoriteBtn.classList.add('animate');
+                setTimeout(() => favoriteBtn.classList.remove('animate'), 600);
+            } else if (wasRemoved && favoriteBtn.classList.contains('favorited')) {
+                favoriteBtn.classList.remove('favorited');
+                favoriteBtn.title = 'Add to favorites';
+            }
+        });
     }
 
     send(data) {
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            this.socket.send(JSON.stringify(data));
-            return true;
-        } else {
-            console.warn('WebSocket not ready, message queued:', data);
-            // Queue message for when connection is restored
-            setTimeout(() => this.send(data), 1000);
-            return false;
+        // Simulate sending data (for compatibility with old WebSocket code)
+        console.log('📤 Sending via polling manager:', data.type);
+        
+        // Handle different message types
+        switch (data.type) {
+            case 'status_update':
+                // Update status via API
+                this.updateStatus(data.status, data.userId);
+                break;
+            case 'post_accepted':
+            case 'post_favorited':
+            case 'post_ignored':
+                // These actions already happen via API calls
+                // We just log them for debugging
+                console.log('Action processed via API:', data.type);
+                break;
+            case 'subscribe':
+                // Handle subscriptions
+                console.log('Subscribed to:', data.channel);
+                break;
+        }
+        
+        return true;
+    }
+
+    async updateStatus(status, userId) {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            await fetch(`${API_BASE_URL}/me/status`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status })
+            });
+            
+            console.log('✅ Status updated via API:', status);
+        } catch (error) {
+            console.error('Failed to update status:', error);
         }
     }
 
     on(event, handler) {
-        if (!this.eventHandlers.has(event)) {
-            this.eventHandlers.set(event, []);
+        // Add event listeners for compatibility
+        switch (event) {
+            case 'connected':
+                // Simulate immediate connection
+                setTimeout(() => handler(), 100);
+                break;
+            case 'disconnected':
+                // We don't really disconnect in polling mode
+                break;
+            case 'feed_update':
+                this.feedUpdateListeners.push(handler);
+                break;
+            case 'status_update':
+                this.statusUpdateListeners.push(handler);
+                break;
+            case 'favorite_update':
+                this.favoriteUpdateListeners.push(handler);
+                break;
+            case 'nearby_users':
+                this.nearbyUserListeners.push(handler);
+                break;
+            case 'message':
+                // Generic message handler
+                break;
         }
-        this.eventHandlers.get(event).push(handler);
         return this;
     }
 
     off(event, handler) {
-        if (this.eventHandlers.has(event)) {
-            const handlers = this.eventHandlers.get(event);
-            const index = handlers.indexOf(handler);
-            if (index > -1) {
-                handlers.splice(index, 1);
-            }
+        // Remove event listener
+        switch (event) {
+            case 'feed_update':
+                this.feedUpdateListeners = this.feedUpdateListeners.filter(h => h !== handler);
+                break;
+            case 'status_update':
+                this.statusUpdateListeners = this.statusUpdateListeners.filter(h => h !== handler);
+                break;
+            case 'favorite_update':
+                this.favoriteUpdateListeners = this.favoriteUpdateListeners.filter(h => h !== handler);
+                break;
+            case 'nearby_users':
+                this.nearbyUserListeners = this.nearbyUserListeners.filter(h => h !== handler);
+                break;
         }
         return this;
     }
 
     emit(event, data) {
-        if (this.eventHandlers.has(event)) {
-            this.eventHandlers.get(event).forEach(handler => {
-                try {
-                    handler(data);
-                } catch (error) {
-                    console.error(`Error in event handler for ${event}:`, error);
-                }
-            });
+        // Emit events to listeners
+        let listeners = [];
+        switch (event) {
+            case 'connected':
+                // Already handled
+                break;
+            case 'disconnected':
+                // Already handled
+                break;
+            case 'feed_update':
+                listeners = this.feedUpdateListeners;
+                break;
+            case 'status_update':
+                listeners = this.statusUpdateListeners;
+                break;
+            case 'favorite_update':
+                listeners = this.favoriteUpdateListeners;
+                break;
+            case 'nearby_users':
+                listeners = this.nearbyUserListeners;
+                break;
         }
+        
+        listeners.forEach(listener => {
+            try {
+                listener(data);
+            } catch (error) {
+                console.error(`Error in event handler for ${event}:`, error);
+            }
+        });
     }
 
     handleMessage(data) {
-        const { type, payload } = data;
-        
-        console.log('📨 WebSocket message received:', type, payload);
-        
-        switch (type) {
-            case 'connected':
-                console.log('✅ WebSocket connection confirmed');
-                showToast('✅ Live updates active', 1500);
-                break;
-                
-            case 'subscribed':
-                console.log(`✅ Subscribed to channels:`, payload?.channels || 'feed_updates');
-                break;
-                
-            case 'new_request':
-                this.handleNewRequest(payload);
-                break;
-                
-            case 'request_update':
-                this.handleRequestUpdate(payload);
-                break;
-                
-            case 'request_removed':
-                this.handleRequestRemoved(payload);
-                break;
-                
-            case 'user_status_update':
-                this.handleUserStatusUpdate(payload);
-                break;
-                
-            case 'favorite_update':
-                this.handleFavoriteUpdate(payload);
-                break;
-                
-            case 'nearby_users':
-                this.handleNearbyUsers(payload);
-                break;
-                
-            case 'post_ignored':
-                this.handlePostIgnored(payload);
-                break;
-                
-            case 'post_favorited':
-                this.handlePostFavorited(payload);
-                break;
-                
-            case 'post_accepted':
-                this.handlePostAccepted(payload);
-                break;
-                
-            case 'pong':
-                // Heartbeat response
-                console.log('❤️ WebSocket heartbeat received');
-                break;
-                
-            case 'ping':
-                // Respond to ping
-                this.send({ type: 'pong' });
-                break;
-                
-            default:
-                console.log('Unknown message type:', type, data);
-                this.emit('message', data);
-        }
-    }
-
-    handleNewRequest(request) {
-        console.log('🆕 New request received:', request);
-        
-        // Add new request to feed if it's not from current user
-        const currentUserId = parseJwt(localStorage.getItem('token'));
-        if (request.userId === currentUserId) return;
-        
-        // Show notification
-        showToast(`📢 New request from ${request.user?.name || 'Someone nearby'}`);
-        
-        // Add to feed WITHOUT page refresh
-        addRequestToFeed(request);
-        
-        // Play subtle notification sound
-        playNotificationSound();
-    }
-
-    handleRequestUpdate(update) {
-        console.log('✏️ Request updated:', update);
-        updateRequestInFeed(update);
-    }
-
-    handleRequestRemoved(requestId) {
-        console.log('🗑️ Request removed:', requestId);
-        removeRequestFromFeed(requestId);
-    }
-
-    handleUserStatusUpdate(update) {
-        console.log('📊 User status updated:', update);
-        
-        // Update status indicator if it's for a user in the feed
-        updateUserStatusInFeed(update.userId, update.status);
-        
-        // Also update in broadcast results if open
-        updateUserStatusInBroadcast(update.userId, update.status);
-    }
-
-    handleFavoriteUpdate(update) {
-        console.log('⭐ Favorite update:', update);
-        // This could update favorite counts or indicators
-    }
-
-    handleNearbyUsers(users) {
-        console.log('📍 Nearby users update:', users);
-        
-        // Update broadcast scan results if scan is active
-        const broadcastOverlay = document.getElementById('broadcast-overlay');
-        if (window.isScanning && broadcastOverlay && broadcastOverlay.classList.contains('active')) {
-            // Update dots with new data
-            setTimeout(() => {
-                if (users.length > 0) {
-                    addBroadcastDots(users);
-                    window.nearbyUsers = users;
-                    
-                    // Update results list
-                    const broadcastResults = document.getElementById('broadcast-results');
-                    if (broadcastResults && broadcastResults.classList.contains('active')) {
-                        displayBroadcastResults(users);
-                    }
-                }
-            }, 500);
-        }
-    }
-
-    handlePostIgnored(payload) {
-        console.log('👎 Post ignored by someone else:', payload);
-        // Remove the post from feed if current user didn't ignore it
-        const currentUserId = parseJwt(localStorage.getItem('token'));
-        if (payload.userId !== currentUserId && payload.postId) {
-            // Fade out the ignored post
-            const card = document.querySelector(`[data-post-id="${payload.postId}"]`);
-            if (card) {
-                card.style.transition = 'opacity 0.5s, transform 0.5s';
-                card.style.opacity = '0.5';
-                card.style.transform = 'translateX(-10px)';
-                
-                setTimeout(() => {
-                    card.style.opacity = '0';
-                    card.style.transform = 'translateX(-100%)';
-                    setTimeout(() => {
-                        if (card.parentNode) {
-                            card.remove();
-                            checkEmpty();
-                        }
-                    }, 500);
-                }, 1000);
-            }
-        }
-    }
-
-    handlePostFavorited(payload) {
-        console.log('❤️ Post favorited by someone:', payload);
-        // Update favorite count or indicator
-        const card = document.querySelector(`[data-post-id="${payload.postId}"]`);
-        if (card) {
-            const favoriteBtn = card.querySelector('.favorite');
-            if (favoriteBtn && payload.userId !== parseJwt(localStorage.getItem('token'))) {
-                // Show that someone else favorited this
-                favoriteBtn.style.animation = 'heartPulse 0.6s ease';
-                setTimeout(() => {
-                    favoriteBtn.style.animation = '';
-                }, 600);
-            }
-        }
-    }
-
-    handlePostAccepted(payload) {
-        console.log('🤝 Post accepted by someone:', payload);
-        // Show notification if someone accepted a request
-        const currentUserId = parseJwt(localStorage.getItem('token'));
-        if (payload.userId !== currentUserId) {
-            showToast(`🤝 ${payload.userName || 'Someone'} accepted a request`, 2000);
-        }
+        // Handle incoming messages (for compatibility)
+        console.log('📨 Message received in polling mode:', data.type);
     }
 
     disconnect() {
-        this.shouldReconnect = false;
-        if (this.socket) {
-            this.socket.close();
-            this.socket = null;
-        }
+        this.stopPolling();
         this.isConnected = false;
-        this.emit('disconnected');
+        console.log('📡 Polling stopped');
     }
 }
 
 // ==================== GLOBAL VARIABLES ====================
 const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
 const API_BASE_URL = 'https://www.instaping.org/api';
-const wsManager = new WebSocketManager();
+const pollingManager = new PollingManager();
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -1497,23 +1536,26 @@ function createConfetti(btn) {
 // Play subtle notification sound
 function playNotificationSound() {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.2);
+        // Create a simple beep using the Web Audio API
+        if (window.AudioContext || window.webkitAudioContext) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.15);
+        }
     } catch (e) {
-        console.log('Audio context not supported');
+        console.log('Audio context not supported or blocked by browser');
     }
 }
 
@@ -2279,14 +2321,12 @@ function displayErrorState() {
                 
                 showToast(`Status changed to ${newStatus}`);
                 
-                // Broadcast status update via WebSocket
-                if (wsManager.isConnected) {
-                    wsManager.send({
-                        type: 'status_update',
-                        status: newStatus,
-                        userId: currentUserId
-                    });
-                }
+                // Send status update via polling manager
+                pollingManager.send({
+                    type: 'status_update',
+                    status: newStatus,
+                    userId: currentUserId
+                });
             } catch (err) {
                 console.error('Update status error:', err);
                 if (err.message !== 'Unauthorized') {
@@ -2453,16 +2493,14 @@ postsArray.forEach(post => {
                 
                 showToast('🤝 Chat created!');
                 
-                // Notify via WebSocket
-                if (wsManager.isConnected) {
-                    wsManager.send({
-                        type: 'post_accepted',
-                        postId: postId,
-                        userId: currentUserId,
-                        targetUserId: userId,
-                        chatId: data.id
-                    });
-                }
+                // Notify via polling manager
+                pollingManager.send({
+                    type: 'post_accepted',
+                    postId: postId,
+                    userId: currentUserId,
+                    targetUserId: userId,
+                    chatId: data.id
+                });
                 
                 // Remove card with animation
                 card.style.transition = 'opacity 0.5s, transform 0.5s';
@@ -2537,16 +2575,14 @@ postsArray.forEach(post => {
             }
         }
 
-        // Notify via WebSocket
-        if (wsManager.isConnected) {
-            wsManager.send({
-                type: 'post_favorited',
-                postId: postId,
-                userId: currentUserId,
-                targetUserId: userId,
-                action: isCurrentlyFavorited ? 'removed' : 'added'
-            });
-        }
+        // Notify via polling manager
+        pollingManager.send({
+            type: 'post_favorited',
+            postId: postId,
+            userId: currentUserId,
+            targetUserId: userId,
+            action: isCurrentlyFavorited ? 'removed' : 'added'
+        });
 
         // Remove card with animation
         card.style.transition = 'opacity 0.5s, transform 0.5s';
@@ -2585,15 +2621,13 @@ postsArray.forEach(post => {
                 checkEmpty();
             }, 500);
             
-            // Notify via WebSocket
-            if (wsManager.isConnected) {
-                wsManager.send({
-                    type: 'post_ignored',
-                    postId: postId,
-                    userId: currentUserId,
-                    targetUserId: userId
-                });
-            }
+            // Notify via polling manager
+            pollingManager.send({
+                type: 'post_ignored',
+                postId: postId,
+                userId: currentUserId,
+                targetUserId: userId
+            });
             
             showToast('👎 Request ignored');
         }
@@ -2722,15 +2756,16 @@ postsArray.forEach(post => {
         });
     }
 
-    // ==================== WEBSOCKET INITIALIZATION ====================
+    // ==================== POLLING INITIALIZATION ====================
     
-    // Connect WebSocket immediately
+    // Start polling after initial load
     setTimeout(() => {
-        wsManager.connect();
+        pollingManager.connect();
         
-        // Listen for WebSocket events
-        wsManager.on('connected', () => {
-            console.log('✅ WebSocket connected event received');
+        // Simulate connection event
+        pollingManager.on('connected', () => {
+            console.log('✅ Polling mode active');
+            
             // Update status indicator
             const statusIndicator = document.querySelector('.status-indicator');
             if (statusIndicator) {
@@ -2741,15 +2776,11 @@ postsArray.forEach(post => {
             }
         });
         
-        wsManager.on('disconnected', () => {
-            console.log('🔌 WebSocket disconnected event received');
-        });
-        
-    }, 500);
+    }, 1000);
 
-    // Clean up WebSocket on page unload
+    // Clean up polling on page unload
     window.addEventListener('beforeunload', () => {
-        wsManager.disconnect();
+        pollingManager.disconnect();
     });
 
     // ==================== SERVICE WORKER ====================
@@ -2768,18 +2799,17 @@ postsArray.forEach(post => {
     loadStatus();
     loadFeed();
 
-    // Auto-refresh feed every 30 seconds as backup
+    // Auto-refresh feed every 2 minutes as backup
     setInterval(() => {
-        if (!wsManager.isConnected) {
-            console.log('🔄 Auto-refreshing feed (WebSocket disconnected)');
-            loadFeed();
-        }
-    }, 30000);
+        console.log('🔄 Auto-refreshing feed');
+        loadFeed();
+    }, 120000); // 2 minutes
 })();
-  </script>
+</script>
 </body>
 
 </html>
+
 
 
 
