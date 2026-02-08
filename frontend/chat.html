@@ -1245,6 +1245,7 @@
     let typingTimer = null;
     let sendingMessages = new Map();
     let lastMessageId = null;
+    let lastMessageTime = 0;
     
     // Carousel state
     let currentCarouselImages = [];
@@ -1253,6 +1254,11 @@
     // Keyboard state
     let isKeyboardVisible = false;
     let initialWindowHeight = window.innerHeight;
+
+    // User activity tracking
+    let lastUserActivity = Date.now();
+    let isUserActive = true;
+    let pollInterval = 1500; // Default 1.5 seconds
 
     // ==================== HELPER FUNCTIONS ====================
     function showToast(message, duration = 2000) {
@@ -1349,6 +1355,31 @@
         });
         
         return groupDiv;
+    }
+
+    // ==================== ACTIVITY TRACKING ====================
+    function trackUserActivity() {
+        const activityEvents = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
+        
+        activityEvents.forEach(event => {
+            document.addEventListener(event, () => {
+                lastUserActivity = Date.now();
+                isUserActive = true;
+                
+                // If user was inactive and becomes active, resume faster polling
+                if (pollManager && pollManager.isPolling) {
+                    pollManager.adjustPollingSpeed();
+                }
+            }, { passive: true });
+        });
+        
+        // Check inactivity every 10 seconds
+        setInterval(() => {
+            const inactiveTime = Date.now() - lastUserActivity;
+            if (inactiveTime > 30000) { // 30 seconds
+                isUserActive = false;
+            }
+        }, 10000);
     }
 
     // ==================== KEYBOARD HANDLING ====================
@@ -1504,6 +1535,51 @@
     }
 
     // ==================== MESSAGE CREATION ====================
+    function addMessageWithAnimation(message, isTemporary = false, shouldShowIndicator = false) {
+        // Check if message already exists
+        const existingMessage = document.querySelector(`[data-message-id="${message.id}"]`);
+        if (existingMessage && !isTemporary) {
+            console.log('Message already exists, skipping:', message.id);
+            return existingMessage;
+        }
+        
+        const messageElement = createMessageElement(message, isTemporary);
+        
+        // Add animation styles for incoming messages
+        if (!isTemporary && message.senderId !== currentUserId) {
+            messageElement.style.opacity = '0';
+            messageElement.style.transform = 'translateY(10px)';
+        }
+        
+        messageArea.appendChild(messageElement);
+        
+        // Update last message ID
+        if (!isTemporary) {
+            lastMessageId = message.id;
+            lastMessageTime = Date.now();
+        }
+        
+        // Animate incoming messages
+        if (!isTemporary && message.senderId !== currentUserId) {
+            setTimeout(() => {
+                messageElement.style.transition = 'all 0.3s ease';
+                messageElement.style.opacity = '1';
+                messageElement.style.transform = 'translateY(0)';
+            }, 10);
+        }
+        
+        // Scroll to bottom if user is near bottom
+        if (isUserAtBottom()) {
+            setTimeout(() => {
+                scrollToBottom();
+            }, 100);
+        } else if (shouldShowIndicator && message.senderId !== currentUserId) {
+            showNewMessageIndicator();
+        }
+        
+        return messageElement;
+    }
+
     function createMessageElement(message, isTemporary = false) {
         perfMark('message-create-start');
         const isOutgoing = message.senderId === currentUserId;
@@ -1597,34 +1673,6 @@
         return messageDiv;
     }
 
-    function addMessageToUI(message, isTemporary = false, shouldShowIndicator = false) {
-        // Check if message already exists
-        const existingMessage = document.querySelector(`[data-message-id="${message.id}"]`);
-        if (existingMessage && !isTemporary) {
-            console.log('Message already exists, skipping:', message.id);
-            return existingMessage;
-        }
-        
-        const messageElement = createMessageElement(message, isTemporary);
-        messageArea.appendChild(messageElement);
-        
-        // Update last message ID
-        if (!isTemporary) {
-            lastMessageId = message.id;
-        }
-        
-        // Scroll to bottom if user is near bottom
-        if (isUserAtBottom()) {
-            setTimeout(() => {
-                scrollToBottom();
-            }, 100);
-        } else if (shouldShowIndicator && message.senderId !== currentUserId) {
-            showNewMessageIndicator();
-        }
-        
-        return messageElement;
-    }
-
     function updateUploadProgress(tempId, progress) {
         const progressBar = document.getElementById(`progress-${tempId}`);
         if (progressBar) {
@@ -1652,22 +1700,32 @@
         }
     }
 
-    // ==================== HTTP POLLING MANAGER ====================
-    class HttpPollingManager {
+    // ==================== SMART POLLING MANAGER ====================
+    class SmartPollingManager {
         constructor(chatId) {
             this.chatId = chatId;
             this.isPolling = false;
-            this.pollInterval = 3000; // Poll every 3 seconds
-            this.lastPollTime = 0;
             this.pollTimeout = null;
+            this.lastPollTime = 0;
+            this.consecutiveErrors = 0;
+            this.maxErrors = 5;
+            
+            // Adaptive polling intervals
+            this.FAST_INTERVAL = 1000;    // 1 second when active
+            this.NORMAL_INTERVAL = 1500;  // 1.5 seconds normal
+            this.SLOW_INTERVAL = 3000;    // 3 seconds when inactive
+            this.BACKOFF_INTERVAL = 5000; // 5 seconds on error
+            
+            this.currentInterval = this.NORMAL_INTERVAL;
+            
+            console.log('🔄 Starting smart polling for chat:', this.chatId);
         }
 
         start() {
             if (this.isPolling) return;
             
             this.isPolling = true;
-            console.log('🔄 Starting HTTP polling for chat:', this.chatId);
-            this.pollForNewMessages();
+            this.startPolling();
         }
 
         stop() {
@@ -1675,46 +1733,88 @@
             if (this.pollTimeout) {
                 clearTimeout(this.pollTimeout);
             }
-            console.log('⏹️ Stopping HTTP polling');
+            console.log('⏹️ Stopping smart polling');
+        }
+
+        adjustPollingSpeed() {
+            const now = Date.now();
+            const timeSinceLastMessage = now - lastMessageTime;
+            const timeSinceActivity = now - lastUserActivity;
+            
+            // Determine optimal polling speed
+            if (this.consecutiveErrors > 0) {
+                this.currentInterval = this.BACKOFF_INTERVAL;
+            } else if (timeSinceActivity > 30000) { // 30 seconds inactive
+                this.currentInterval = this.SLOW_INTERVAL;
+            } else if (timeSinceLastMessage < 10000) { // Message in last 10 seconds
+                this.currentInterval = this.FAST_INTERVAL;
+            } else {
+                this.currentInterval = this.NORMAL_INTERVAL;
+            }
+        }
+
+        async startPolling() {
+            if (!this.isPolling) return;
+            
+            this.adjustPollingSpeed();
+            
+            try {
+                await this.pollForNewMessages();
+                this.consecutiveErrors = 0; // Reset error count on success
+            } catch (error) {
+                console.error('Polling error:', error);
+                this.consecutiveErrors++;
+                
+                if (this.consecutiveErrors >= this.maxErrors) {
+                    console.error('Too many polling errors, stopping');
+                    this.stop();
+                    showToast('Connection lost. Please refresh.', 3000);
+                    return;
+                }
+            }
+            
+            // Schedule next poll with current interval
+            if (this.isPolling) {
+                this.pollTimeout = setTimeout(() => this.startPolling(), this.currentInterval);
+            }
         }
 
         async pollForNewMessages() {
-            if (!this.isPolling) return;
+            if (!this.isPolling || !this.chatId) return;
+
+            const now = Date.now();
+            if (now - this.lastPollTime < 300) { // Minimum 300ms between polls
+                return;
+            }
+            
+            this.lastPollTime = now;
 
             try {
-                // Only poll if chatId exists
-                if (!this.chatId) {
-                    this.scheduleNextPoll();
-                    return;
-                }
-
-                const response = await fetch(`${API_BASE_URL}/messages/${this.chatId}?since=${lastMessageId || ''}`, {
+                const response = await fetch(`${API_BASE_URL}/messages/${this.chatId}?since=${lastMessageId || ''}&_t=${now}`, {
                     headers: { 
                         'Authorization': `Bearer ${token}`,
-                        'Cache-Control': 'no-cache'
-                    }
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    },
+                    signal: AbortSignal.timeout(5000) // 5 second timeout
                 });
 
                 if (response.ok) {
                     const messages = await response.json() || [];
                     
-                    // Process new messages
+                    // Process new messages with smooth animation
                     messages.forEach(msg => {
                         if (msg.id !== lastMessageId) {
                             this.handleNewMessage(msg);
                         }
                     });
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
                 }
             } catch (error) {
-                console.error('Polling error:', error);
-            }
-
-            this.scheduleNextPoll();
-        }
-
-        scheduleNextPoll() {
-            if (this.isPolling) {
-                this.pollTimeout = setTimeout(() => this.pollForNewMessages(), this.pollInterval);
+                if (error.name !== 'AbortError') {
+                    throw error;
+                }
             }
         }
 
@@ -1752,11 +1852,11 @@
                 if (foundTempId) {
                     replaceTemporaryMessage(foundTempId, message);
                 } else {
-                    addMessageToUI(message, false, false);
+                    addMessageWithAnimation(message, false, false);
                 }
             } else {
                 const shouldShowIndicator = !isUserAtBottom();
-                addMessageToUI(message, false, shouldShowIndicator);
+                addMessageWithAnimation(message, false, shouldShowIndicator);
                 
                 // Mark as read
                 this.markMessageRead([message.id]);
@@ -1889,7 +1989,8 @@
             if (this.reconnectAttempts >= this.maxReconnectAttempts) {
                 console.error('Max reconnection attempts reached, falling back to polling');
                 // Fall back to polling
-                if (pollManager) {
+                if (USE_POLLING && !pollManager) {
+                    pollManager = new SmartPollingManager(chatId);
                     pollManager.start();
                 }
                 return;
@@ -1978,11 +2079,11 @@
                 if (foundTempId) {
                     replaceTemporaryMessage(foundTempId, message);
                 } else {
-                    addMessageToUI(message, false, false);
+                    addMessageWithAnimation(message, false, false);
                 }
             } else {
                 const shouldShowIndicator = !isUserAtBottom();
-                addMessageToUI(message, false, shouldShowIndicator);
+                addMessageWithAnimation(message, false, shouldShowIndicator);
                 this.sendMessageRead([message.id]);
             }
         }
@@ -2264,7 +2365,8 @@
             isRead: false
         };
 
-        addMessageToUI(tempMessage, true, false);
+        // INSTANT feedback - show message immediately
+        addMessageWithAnimation(tempMessage, true, false);
         sendingMessages.set(tempId, {
             content: text,
             element: document.querySelector(`[data-temp-id="${tempId}"]`)
@@ -2328,7 +2430,8 @@
                 isRead: false
             };
 
-            addMessageToUI(tempMessage, true, false);
+            // INSTANT feedback - show image immediately
+            addMessageWithAnimation(tempMessage, true, false);
             sendingMessages.set(tempId, {
                 content: URL.createObjectURL(file),
                 element: document.querySelector(`[data-temp-id="${tempId}"]`)
@@ -2693,7 +2796,7 @@
                         
                         // Initialize connection manager based on environment
                         if (USE_POLLING) {
-                            pollManager = new HttpPollingManager(chatId);
+                            pollManager = new SmartPollingManager(chatId);
                             setTimeout(() => pollManager.start(), 1000);
                         } else {
                             wsManager = new ChatRoomWebSocketManager(chatId);
@@ -2717,7 +2820,7 @@
                     // Initialize connection manager based on environment
                     if (!pollManager && !wsManager) {
                         if (USE_POLLING) {
-                            pollManager = new HttpPollingManager(chatId);
+                            pollManager = new SmartPollingManager(chatId);
                             setTimeout(() => pollManager.start(), 1000);
                         } else {
                             wsManager = new ChatRoomWebSocketManager(chatId);
@@ -2741,7 +2844,7 @@
             messageArea.innerHTML = '<div class="system-message">Today</div>';
 
             messages.forEach(msg => {
-                addMessageToUI(msg);
+                addMessageWithAnimation(msg);
             });
 
             scrollToBottom();
@@ -2794,6 +2897,7 @@
         initEmojiPicker();
         
         handleKeyboardBehavior();
+        trackUserActivity();
         
         messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
@@ -2801,23 +2905,11 @@
             updateSendButton();
         });
 
-        // Periodic refresh for polling
-        if (USE_POLLING) {
-            setInterval(() => {
-                if (pollManager && chatId) {
-                    // Poll manager handles its own polling
-                } else if (!chatId) {
-                    // Try to reload chat if chatId is not set
-                    loadMessages();
-                }
-            }, 30000);
-        } else {
-            setInterval(() => {
-                if (!wsManager || !wsManager.isConnected) {
-                    loadMessages();
-                }
-            }, 30000);
-        }
+        // Keep alive - refresh token periodically
+        setInterval(() => {
+            // Keep user active for polling
+            lastUserActivity = Date.now();
+        }, 60000); // Every minute
         
         perfMark('app-init-end');
         perfMeasure('app-init-duration', 'app-init-start', 'app-init-end');
@@ -2847,6 +2939,7 @@
 </script>
 </body>
 </html>
+
 
 
 
