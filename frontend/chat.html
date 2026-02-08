@@ -2,49 +2,77 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
   <title>InstaPing | Chat</title>
   <link rel="icon" type="image/png" href="asset/logo.jpeg">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box;
+      touch-action: manipulation;
+    }
+    
     html, body {
       height: 100%;
       overflow: hidden;
+      overscroll-behavior: none;
     }
+    
     body {
       background: #000000;
       color: #FFFFFF;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      overflow: hidden;
       display: flex;
       flex-direction: column;
+      -webkit-tap-highlight-color: transparent;
     }
     
-    /* Header - FIXED to prevent hiding */
+    /* CSS Custom Properties for Theming */
+    :root {
+      --bg-primary: #000000;
+      --bg-secondary: #1F1F1F;
+      --bg-tertiary: #2A2A2A;
+      --text-primary: #FFFFFF;
+      --text-secondary: #8E8E8E;
+      --accent-primary: #FFFFFF;
+      --border-color: #2A2A2A;
+      --safe-area-top: env(safe-area-inset-top, 0px);
+      --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    
+    /* Header - Fixed at top */
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: calc(16px + env(safe-area-inset-top, 0px)) 24px 16px 24px;
-      background: #000000;
-      border-bottom: 1px solid #2A2A2A;
+      padding: calc(16px + var(--safe-area-top)) 16px 12px;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
       position: sticky;
       top: 0;
       z-index: 1000;
       flex-shrink: 0;
       width: 100%;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      background: rgba(0, 0, 0, 0.9);
+      transform: translateZ(0);
+      will-change: transform;
     }
     
     .header-left { 
       display: flex; 
       align-items: center; 
-      gap: 16px; 
+      gap: 12px; 
       cursor: pointer; 
     }
     
@@ -57,18 +85,20 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
     
     .back-btn svg { 
       width: 24px; 
       height: 24px; 
-      fill: #FFFFFF; 
+      fill: var(--text-primary); 
     }
     
     .user-info-wrapper {
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
     }
     
     .user-avatar { 
@@ -76,8 +106,9 @@
       height: 40px; 
       border-radius: 50%; 
       overflow: hidden; 
-      background: #2A2A2A;
-      border: 2px solid #000000;
+      background: var(--bg-tertiary);
+      border: 2px solid var(--bg-primary);
+      flex-shrink: 0;
     }
     
     .user-avatar img { 
@@ -89,12 +120,17 @@
     .user-info { 
       display: flex; 
       flex-direction: column; 
-      gap: 2px;
+      gap: 4px;
+      min-width: 0;
     }
     
     .username { 
       font-size: 17px; 
       font-weight: 600; 
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
     .status-wrapper {
@@ -106,7 +142,7 @@
     
     .typing-status {
       font-size: 13px;
-      color: #8E8E8E;
+      color: var(--text-secondary);
       font-weight: 400;
       display: none;
       align-items: center;
@@ -126,7 +162,7 @@
     .typing-dot {
       width: 4px;
       height: 4px;
-      background: #8E8E8E;
+      background: var(--text-secondary);
       border-radius: 50%;
       animation: typingBounce 1.4s infinite ease-in-out;
     }
@@ -141,51 +177,68 @@
     
     .online-status { 
       font-size: 13px; 
-      color: #8E8E8E;
+      color: var(--text-secondary);
       font-weight: 400;
     }
     
     .header-right { 
       display: flex; 
-      gap: 16px; 
+      gap: 12px; 
+      flex-shrink: 0;
     }
     
     .header-btn {
       width: 36px;
       height: 36px;
-      background: #1F1F1F;
-      border: 1px solid #2A2A2A;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      flex-shrink: 0;
     }
     
     .header-btn svg { 
       width: 20px; 
       height: 20px; 
-      fill: #FFFFFF; 
+      fill: var(--text-primary); 
     }
     
-    /* Message Area - FIXED with proper flex behavior */
+    /* Message Area - Flex child that takes remaining space */
     .message-area { 
-      flex: 1; 
-      overflow-y: auto; 
+      flex: 1 1 auto;
+      overflow-y: auto;
       overflow-x: hidden;
       padding: 16px;
-      padding-bottom: 180px;
       display: flex; 
       flex-direction: column; 
       gap: 16px; 
-      position: relative;
       -webkit-overflow-scrolling: touch;
-      margin-bottom: env(safe-area-inset-bottom, 0px);
+      scroll-behavior: smooth;
+      overscroll-behavior: contain;
+      content-visibility: auto;
+      contain-intrinsic-size: 0 500px;
+    }
+    
+    /* Custom scrollbar */
+    .message-area::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .message-area::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    .message-area::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 3px;
     }
     
     /* Message Bubbles */
     .message {
-      max-width: 85%;
+      max-width: min(85%, 400px);
       padding: 12px 16px;
       border-radius: 20px;
       font-size: 15px;
@@ -194,6 +247,8 @@
       animation: fadeIn 0.3s ease;
       word-wrap: break-word;
       overflow-wrap: break-word;
+      contain: layout style paint;
+      will-change: transform, opacity;
     }
     
     @keyframes fadeIn { 
@@ -203,23 +258,21 @@
     
     .incoming { 
       align-self: flex-start; 
-      background: #1F1F1F;
-      border: 1px solid #2A2A2A;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
       border-radius: 20px 20px 20px 4px;
-      margin-left: 8px;
     }
     
     .outgoing { 
       align-self: flex-end; 
-      background: #FFFFFF;
-      color: #000000;
+      background: var(--accent-primary);
+      color: var(--bg-primary);
       border-radius: 20px 20px 4px 20px;
-      margin-right: 8px;
     }
     
     .message-timestamp { 
       font-size: 11px; 
-      color: #8E8E8E; 
+      color: var(--text-secondary); 
       margin-top: 6px; 
       text-align: right; 
       font-weight: 400;
@@ -227,7 +280,7 @@
     
     .read-receipt { 
       font-size: 11px; 
-      color: #8E8E8E; 
+      color: var(--text-secondary); 
       margin-top: 4px; 
       text-align: right; 
       display: flex;
@@ -239,10 +292,10 @@
     .system-message { 
       text-align: center; 
       font-size: 13px; 
-      color: #8E8E8E; 
+      color: var(--text-secondary); 
       margin: 20px 0; 
       padding: 8px 16px;
-      background: #1F1F1F;
+      background: var(--bg-secondary);
       border-radius: 20px;
       align-self: center;
       font-weight: 400;
@@ -256,10 +309,11 @@
       max-width: 100%;
       cursor: pointer;
       transition: transform 0.2s;
+      will-change: transform;
     }
     
-    .image-group:hover {
-      transform: scale(1.01);
+    .image-group:active {
+      transform: scale(0.98);
     }
     
     .image-group-1 { grid-template-columns: 1fr; }
@@ -290,9 +344,11 @@
       object-fit: cover;
       border-radius: 8px;
       transition: opacity 0.2s;
+      aspect-ratio: 1;
+      display: block;
     }
     
-    .grouped-image:hover {
+    .grouped-image:active {
       opacity: 0.9;
     }
     
@@ -326,14 +382,14 @@
       left: 0;
       right: 0;
       height: 3px;
-      background: #2A2A2A;
+      background: var(--bg-tertiary);
       border-radius: 0 0 20px 20px;
       overflow: hidden;
     }
     
     .progress-bar {
       height: 100%;
-      background: #FFFFFF;
+      background: var(--accent-primary);
       width: 0%;
       transition: width 0.3s ease;
     }
@@ -345,10 +401,11 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: #000000;
+      background: var(--bg-primary);
       display: none;
       flex-direction: column;
       z-index: 2000;
+      overscroll-behavior: contain;
     }
     
     .image-carousel.active {
@@ -359,41 +416,46 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: calc(16px + env(safe-area-inset-top, 0px)) 24px 16px 24px;
+      padding: calc(16px + var(--safe-area-top)) 16px 12px;
       background: rgba(0, 0, 0, 0.9);
       z-index: 10;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
     
     .carousel-count {
       font-size: 15px;
-      color: #FFFFFF;
+      color: var(--text-primary);
       font-weight: 500;
     }
     
     .carousel-close {
       width: 36px;
       height: 36px;
-      background: #1F1F1F;
-      border: 1px solid #2A2A2A;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       font-size: 20px;
-      color: white;
+      color: var(--text-primary);
+      flex-shrink: 0;
     }
     
     .carousel-container {
       flex: 1;
       position: relative;
       overflow: hidden;
+      touch-action: pan-y pinch-zoom;
     }
     
     .carousel-track {
       display: flex;
       height: 100%;
       transition: transform 0.3s ease;
+      scroll-snap-type: x mandatory;
     }
     
     .carousel-slide {
@@ -403,6 +465,7 @@
       align-items: center;
       justify-content: center;
       padding: 20px;
+      scroll-snap-align: start;
     }
     
     .carousel-image {
@@ -410,6 +473,7 @@
       max-height: 100%;
       object-fit: contain;
       border-radius: 8px;
+      -webkit-touch-callout: none;
     }
     
     .carousel-nav {
@@ -417,8 +481,8 @@
       top: 50%;
       transform: translateY(-50%);
       background: rgba(31, 31, 31, 0.8);
-      border: 1px solid #2A2A2A;
-      color: white;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
       width: 44px;
       height: 44px;
       border-radius: 50%;
@@ -428,14 +492,15 @@
       cursor: pointer;
       font-size: 24px;
       z-index: 5;
+      -webkit-tap-highlight-color: transparent;
     }
     
     .carousel-prev {
-      left: 20px;
+      left: 16px;
     }
     
     .carousel-next {
-      right: 20px;
+      right: 16px;
     }
     
     .carousel-indicators {
@@ -443,30 +508,33 @@
       justify-content: center;
       gap: 8px;
       padding: 20px;
-      padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: calc(20px + var(--safe-area-bottom));
       background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
     
     .carousel-indicator {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #2A2A2A;
+      background: var(--bg-tertiary);
       transition: background 0.2s, transform 0.2s;
+      cursor: pointer;
     }
     
     .carousel-indicator.active {
-      background: #FFFFFF;
+      background: var(--text-primary);
       transform: scale(1.2);
     }
     
-    /* New Message Indicator - FIXED position */
+    /* New Message Indicator */
     .new-message-indicator {
       position: fixed;
-      bottom: calc(140px + env(safe-area-inset-bottom, 0px));
-      right: 20px;
-      background: #FFFFFF;
-      color: #000000;
+      bottom: calc(140px + var(--safe-area-bottom));
+      right: 16px;
+      background: var(--accent-primary);
+      color: var(--bg-primary);
       padding: 10px 16px;
       border-radius: 20px;
       font-size: 14px;
@@ -476,25 +544,26 @@
       display: none;
       align-items: center;
       gap: 8px;
-      border: 1px solid #2A2A2A;
+      border: 1px solid var(--border-color);
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      -webkit-tap-highlight-color: transparent;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
     
-    /* Input Bar - FIXED position */
+    /* Input Bar - Fixed at bottom */
     .input-bar {
       display: flex;
       flex-direction: column;
       padding: 12px 16px;
-      background: #000000;
-      border-top: 1px solid #2A2A2A;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 1000;
+      background: var(--bg-primary);
+      border-top: 1px solid var(--border-color);
       flex-shrink: 0;
-      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-      box-sizing: border-box;
+      padding-bottom: calc(12px + var(--safe-area-bottom));
+      will-change: transform;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      background: rgba(0, 0, 0, 0.9);
     }
     
     .preview-area {
@@ -505,6 +574,12 @@
       max-width: 100%;
       max-height: 100px;
       -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      overscroll-behavior-x: contain;
+    }
+    
+    .preview-area::-webkit-scrollbar {
+      display: none;
     }
     
     .preview-item {
@@ -512,6 +587,8 @@
       width: 80px;
       height: 80px;
       flex-shrink: 0;
+      border-radius: 8px;
+      overflow: hidden;
     }
     
     .preview-item img {
@@ -520,6 +597,7 @@
       object-fit: cover;
       border-radius: 8px;
       cursor: pointer;
+      aspect-ratio: 1;
     }
     
     .preview-remove {
@@ -528,16 +606,17 @@
       right: -6px;
       width: 24px;
       height: 24px;
-      background: #000000;
-      border: 1px solid #2A2A2A;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       font-size: 14px;
-      color: white;
+      color: var(--text-primary);
       font-weight: 600;
+      -webkit-tap-highlight-color: transparent;
     }
     
     /* Progress overlay for image upload */
@@ -553,12 +632,13 @@
       align-items: center;
       justify-content: center;
       transition: opacity 0.3s;
+      border-radius: 8px;
     }
     
     .preview-progress-bar {
       width: 60%;
       height: 4px;
-      background: #2A2A2A;
+      background: var(--bg-tertiary);
       border-radius: 2px;
       overflow: hidden;
       margin-bottom: 8px;
@@ -568,13 +648,13 @@
       content: '';
       display: block;
       height: 100%;
-      background: #FFFFFF;
+      background: var(--accent-primary);
       width: var(--progress-width, 0%);
       transition: width 0.3s ease;
     }
     
     .preview-progress-text {
-      color: white;
+      color: var(--text-primary);
       font-size: 12px;
       font-weight: 500;
     }
@@ -582,13 +662,14 @@
     .input-container {
       display: flex;
       align-items: flex-end;
-      background: #1F1F1F;
+      background: var(--bg-secondary);
       border-radius: 24px;
       padding: 8px 12px;
       min-height: 48px;
-      border: 1px solid #2A2A2A;
+      border: 1px solid var(--border-color);
       max-height: 120px;
       overflow: hidden;
+      gap: 8px;
     }
     
     .input-icon { 
@@ -597,19 +678,20 @@
       justify-content: center;
       cursor: pointer; 
       flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
     }
     
     .input-icon svg { 
       width: 20px; 
       height: 20px; 
-      fill: #FFFFFF; 
+      fill: var(--text-primary); 
     }
     
     .message-input {
       flex: 1;
       background: transparent;
       border: none;
-      color: #FFFFFF;
+      color: var(--text-primary);
       font-size: 15px;
       outline: none;
       resize: none;
@@ -618,52 +700,73 @@
       min-height: 24px;
       line-height: 24px;
       font-family: inherit;
-      padding: 0 12px;
+      padding: 0 8px;
       margin: 0;
       -webkit-appearance: none;
       appearance: none;
       -webkit-tap-highlight-color: transparent;
       -webkit-touch-callout: default;
+      scrollbar-width: none;
+    }
+    
+    .message-input::-webkit-scrollbar {
+      display: none;
     }
     
     .message-input::placeholder { 
-      color: #8E8E8E; 
+      color: var(--text-secondary); 
+    }
+    
+    .message-input:focus {
+      outline: none;
+    }
+    
+    /* Focus-visible for accessibility */
+    *:focus-visible {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
     }
     
     .send-btn {
       width: 36px;
       height: 36px;
-      background: #1F1F1F;
-      border: 1px solid #2A2A2A;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color 0.2s;
+    }
+    
+    .send-btn:active {
+      transform: scale(0.95);
     }
     
     .send-btn svg { 
       width: 20px; 
       height: 20px; 
-      fill: #FFFFFF; 
+      fill: var(--text-primary); 
     }
     
     .send-btn.enabled {
-      background: #FFFFFF;
+      background: var(--accent-primary);
     }
     
     .send-btn.enabled svg {
-      fill: #000000;
+      fill: var(--bg-primary);
     }
     
     /* Emoji Picker */
     .emoji-modal {
       position: fixed;
-      bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(80px + var(--safe-area-bottom));
       left: 16px;
       right: 16px;
-      background: #000000;
+      background: var(--bg-primary);
       border-radius: 20px;
       max-height: 400px;
       height: 400px;
@@ -672,7 +775,9 @@
       box-shadow: 0 10px 40px rgba(0,0,0,0.5);
       display: none;
       flex-direction: column;
-      border: 1px solid #2A2A2A;
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
     }
     
     .emoji-modal.show { 
@@ -681,40 +786,48 @@
     
     .emoji-header {
       padding: 16px;
-      border-bottom: 1px solid #2A2A2A;
+      border-bottom: 1px solid var(--border-color);
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
     }
     
     .emoji-title {
       font-size: 16px;
       font-weight: 600;
-      color: #FFFFFF;
+      color: var(--text-primary);
+      flex-shrink: 0;
     }
     
     .emoji-search {
-      background: #1F1F1F;
-      border: 1px solid #2A2A2A;
+      flex: 1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
       border-radius: 20px;
       padding: 8px 16px;
-      color: white;
+      color: var(--text-primary);
       font-size: 14px;
-      width: 60%;
       outline: none;
+      min-width: 0;
     }
     
     .emoji-search::placeholder {
-      color: #8E8E8E;
+      color: var(--text-secondary);
     }
     
     .emoji-categories {
       display: flex;
       padding: 0 16px;
-      border-bottom: 1px solid #2A2A2A;
+      border-bottom: 1px solid var(--border-color);
       overflow-x: auto;
       gap: 8px;
       flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    
+    .emoji-categories::-webkit-scrollbar {
+      display: none;
     }
     
     .emoji-category {
@@ -725,17 +838,24 @@
       transition: opacity 0.2s;
       min-width: 44px;
       text-align: center;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
     }
     
     .emoji-category.active {
       opacity: 1;
-      border-bottom: 2px solid #FFFFFF;
+      border-bottom: 2px solid var(--text-primary);
     }
     
     .emoji-grid-container {
       flex: 1;
       overflow-y: auto;
       padding: 16px;
+      scrollbar-width: none;
+    }
+    
+    .emoji-grid-container::-webkit-scrollbar {
+      display: none;
     }
     
     .emoji-grid {
@@ -751,17 +871,19 @@
       transition: transform 0.1s; 
       padding: 4px;
       border-radius: 8px;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
     }
     
-    .emoji-item:hover { 
-      background: #1F1F1F;
+    .emoji-item:active { 
+      background: var(--bg-secondary);
       transform: scale(1.2); 
     }
     
     .close-modal { 
       cursor: pointer; 
       font-size: 28px; 
-      color: #FFFFFF;
+      color: var(--text-primary);
       background: none;
       border: none;
       padding: 0;
@@ -771,17 +893,19 @@
       align-items: center;
       justify-content: center;
       border-radius: 50%;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
     }
     
-    .close-modal:hover {
-      background: #1F1F1F;
+    .close-modal:active {
+      background: var(--bg-secondary);
     }
     
     /* Skeleton Loader */
     .skeleton-loader {
       position: absolute;
       inset: 0;
-      background: #000000;
+      background: var(--bg-primary);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -794,14 +918,14 @@
       width: 80px;
       height: 80px;
       border-radius: 50%;
-      background: #1F1F1F;
+      background: var(--bg-secondary);
       animation: pulse 1.5s infinite ease-in-out;
     }
     
     .skeleton-name {
       width: 120px;
       height: 20px;
-      background: #1F1F1F;
+      background: var(--bg-secondary);
       border-radius: 10px;
       animation: pulse 1.5s infinite ease-in-out;
     }
@@ -810,7 +934,7 @@
       width: 80%;
       max-width: 300px;
       height: 60px;
-      background: #1F1F1F;
+      background: var(--bg-secondary);
       border-radius: 15px;
       animation: pulse 1.5s infinite ease-in-out;
     }
@@ -823,11 +947,11 @@
     /* Toast */
     #toast {
       position: fixed;
-      bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(100px + var(--safe-area-bottom));
       left: 50%;
       transform: translateX(-50%);
       background: rgba(31, 31, 31, 0.95);
-      color: #FFFFFF;
+      color: var(--text-primary);
       padding: 8px 16px;
       border-radius: 20px;
       font-size: 13px;
@@ -840,6 +964,8 @@
       max-width: 90%;
       text-align: center;
       backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      pointer-events: none;
     }
     
     #toast.show {
@@ -848,7 +974,7 @@
       transform: translateX(-50%) translateY(-8px);
     }
     
-    /* Responsive */
+    /* Responsive Design */
     @media (max-width: 480px) {
       .message {
         max-width: 90%;
@@ -871,34 +997,24 @@
       }
       
       .carousel-prev {
-        left: 10px;
+        left: 12px;
       }
       
       .carousel-next {
-        right: 10px;
+        right: 12px;
+      }
+      
+      header, .carousel-header {
+        padding-left: 12px;
+        padding-right: 12px;
       }
     }
     
     /* Handle landscape mode */
     @media (orientation: landscape) {
-      .input-bar {
-        padding-bottom: 12px;
-      }
-      
-      .message-area {
-        padding-bottom: 160px;
-      }
-      
-      .new-message-indicator {
-        bottom: 140px;
-      }
-      
       .emoji-modal {
-        bottom: 80px;
-      }
-      
-      #toast {
-        bottom: 100px;
+        height: 300px;
+        max-height: 300px;
       }
     }
     
@@ -918,41 +1034,42 @@
       }
       
       .new-message-indicator {
-        bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(120px + var(--safe-area-bottom));
       }
     }
     
-    /* FIX FOR KEYBOARD SHOWING - Keep header visible */
+    /* Reduced motion preference */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    
+    /* High contrast mode */
+    @media (prefers-contrast: high) {
+      .message {
+        border: 2px solid currentColor;
+      }
+    }
+    
+    /* iOS-specific fixes */
     @supports (-webkit-touch-callout: none) {
-      /* iOS specific styles */
       body {
         height: -webkit-fill-available;
       }
       
       .message-area {
-        height: 100%;
-        flex: 1;
-        overflow-y: auto;
-      }
-      
-      /* Prevent iOS from hiding header when keyboard appears */
-      header {
-        position: sticky;
-        top: 0;
+        padding-bottom: calc(160px + var(--safe-area-bottom));
       }
     }
     
-    /* Android specific fixes */
-    @supports not (-webkit-touch-callout: none) {
-      body {
-        overscroll-behavior: none;
-      }
-    }
-    
-    /* Hide scrollbars */
+    /* Hide scrollbars for clean look */
     .message-area::-webkit-scrollbar,
     .preview-area::-webkit-scrollbar,
-    .emoji-grid-container::-webkit-scrollbar {
+    .emoji-grid-container::-webkit-scrollbar,
+    .emoji-categories::-webkit-scrollbar {
       display: none;
     }
   </style>
@@ -960,19 +1077,19 @@
 <body>
   <header>
     <div class="header-left">
-      <button class="back-btn" id="back-btn">
+      <button class="back-btn" id="back-btn" aria-label="Go back">
         <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
       </button>
       <div class="user-info-wrapper">
         <div class="user-avatar">
-          <img id="partner-avatar" src="" alt="Partner">
+          <img id="partner-avatar" src="" alt="Partner avatar">
         </div>
         <div class="user-info">
           <div id="partner-name" class="username">Loading...</div>
           <div class="status-wrapper">
-            <div id="typing-status" class="typing-status">
+            <div id="typing-status" class="typing-status" aria-live="polite" aria-atomic="true" role="status">
               <span>typing</span>
-              <div class="typing-dots">
+              <div class="typing-dots" aria-hidden="true">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -984,14 +1101,14 @@
       </div>
     </div>
     <div class="header-right">
-      <button class="header-btn">
+      <button class="header-btn" aria-label="More options">
         <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
       </button>
     </div>
   </header>
 
   <!-- Skeleton Loader -->
-  <div class="skeleton-loader" id="skeleton-loader">
+  <div class="skeleton-loader" id="skeleton-loader" aria-hidden="true">
     <div class="skeleton-avatar"></div>
     <div class="skeleton-name"></div>
     <div class="skeleton-message"></div>
@@ -999,12 +1116,12 @@
     <div class="skeleton-message" style="width: 70%;"></div>
   </div>
 
-  <div class="message-area" id="message-area">
+  <main class="message-area" id="message-area" role="log" aria-live="polite">
     <!-- Messages will be loaded here -->
-  </div>
+  </main>
 
   <!-- New Message Indicator -->
-  <button class="new-message-indicator" id="new-message-indicator">
+  <button class="new-message-indicator" id="new-message-indicator" aria-label="New messages">
     <span>New messages</span>
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
       <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
@@ -1012,15 +1129,15 @@
   </button>
 
   <!-- Image Carousel -->
-  <div class="image-carousel" id="image-carousel">
+  <div class="image-carousel" id="image-carousel" role="dialog" aria-modal="true" aria-labelledby="carousel-count">
     <div class="carousel-header">
       <div class="carousel-count" id="carousel-count">1/1</div>
-      <button class="carousel-close" id="carousel-close">×</button>
+      <button class="carousel-close" id="carousel-close" aria-label="Close carousel">×</button>
     </div>
     <div class="carousel-container">
       <div class="carousel-track" id="carousel-track"></div>
-      <button class="carousel-nav carousel-prev" id="carousel-prev">‹</button>
-      <button class="carousel-nav carousel-next" id="carousel-next">›</button>
+      <button class="carousel-nav carousel-prev" id="carousel-prev" aria-label="Previous image">‹</button>
+      <button class="carousel-nav carousel-next" id="carousel-next" aria-label="Next image">›</button>
     </div>
     <div class="carousel-indicators" id="carousel-indicators"></div>
   </div>
@@ -1029,38 +1146,38 @@
     <div class="preview-area" id="preview-area"></div>
     <div class="input-container">
       <div class="input-icon">
-        <input type="file" id="photo-input" accept="image/*" multiple style="display: none;">
-        <svg viewBox="0 0 24 24" id="photo-button">
+        <input type="file" id="photo-input" accept="image/*" multiple style="display: none;" aria-label="Upload photo">
+        <svg viewBox="0 0 24 24" id="photo-button" role="button" aria-label="Add photo">
           <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
         </svg>
       </div>
       <div class="input-icon">
-        <svg viewBox="0 0 24 24" id="emoji-button">
+        <svg viewBox="0 0 24 24" id="emoji-button" role="button" aria-label="Add emoji">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-3-9c.83 0 1.5-.67 1.5-1.5S9.83 8 9 8s-1.5.67-1.5 1.5S8.17 11 9 11zm6 0c.83 0 1.5-.67 1.5-1.5S15.83 8 15 8s-1.5.67-1.5 1.5S14.17 11 15 11zm-6.5 2h7a3.5 3.5 0 0 1-7 0z"/>
         </svg>
       </div>
-      <textarea class="message-input" id="message-input" placeholder="Message…" rows="1"></textarea>
-      <button class="send-btn" id="send-btn">
+      <textarea class="message-input" id="message-input" placeholder="Message…" rows="1" aria-label="Message input"></textarea>
+      <button class="send-btn" id="send-btn" aria-label="Send message">
         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
       </button>
     </div>
   </div>
 
   <!-- Emoji Picker -->
-  <div class="emoji-modal" id="emoji-modal">
+  <div class="emoji-modal" id="emoji-modal" role="dialog" aria-modal="true" aria-label="Emoji picker">
     <div class="emoji-header">
       <div class="emoji-title">Emoji Picker</div>
-      <input type="text" class="emoji-search" id="emoji-search" placeholder="Search emojis...">
-      <button class="close-modal" id="close-modal">×</button>
+      <input type="text" class="emoji-search" id="emoji-search" placeholder="Search emojis..." aria-label="Search emojis">
+      <button class="close-modal" id="close-modal" aria-label="Close emoji picker">×</button>
     </div>
-    <div class="emoji-categories" id="emoji-categories"></div>
+    <div class="emoji-categories" id="emoji-categories" role="tablist" aria-label="Emoji categories"></div>
     <div class="emoji-grid-container">
-      <div class="emoji-grid" id="emoji-grid"></div>
+      <div class="emoji-grid" id="emoji-grid" role="grid" aria-label="Emoji grid"></div>
     </div>
   </div>
 
   <!-- Toast -->
-  <div id="toast"></div>
+  <div id="toast" role="alert" aria-live="assertive"></div>
 
 <script>
     const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
@@ -1105,27 +1222,47 @@
     const carouselNext = document.getElementById('carousel-next');
     const carouselIndicators = document.getElementById('carousel-indicators');
 
+    // Performance monitoring
+    const perfMark = (name) => {
+        if (window.performance && performance.mark) {
+            performance.mark(name);
+        }
+    };
+
     let currentUserId = null;
     let partnerUserId = null;
     let chatId = null;
     let pendingImages = [];
     let wsManager = null;
     let typingTimer = null;
-    let sendingMessages = new Map(); // Maps: tempId -> {messageData, element}
+    let sendingMessages = new Map();
     
     // Carousel state
     let currentCarouselImages = [];
     let currentSlideIndex = 0;
 
+    // Keyboard state
+    let isKeyboardVisible = false;
+    let initialWindowHeight = window.innerHeight;
+
     // ==================== HELPER FUNCTIONS ====================
     function showToast(message, duration = 2000) {
+      perfMark('toast-start');
       toast.textContent = message;
       toast.classList.add('show');
 
       clearTimeout(toast.hideTimeout);
       toast.hideTimeout = setTimeout(() => {
         toast.classList.remove('show');
+        perfMark('toast-end');
+        perfMeasure('toast-duration', 'toast-start', 'toast-end');
       }, duration);
+    }
+
+    function perfMeasure(name, start, end) {
+        if (window.performance && performance.measure) {
+            performance.measure(name, start, end);
+        }
     }
 
     function showNewMessageIndicator() {
@@ -1205,99 +1342,54 @@
         return groupDiv;
     }
 
-    // ==================== KEYBOARD HANDLING - FIXED ====================
+    // ==================== KEYBOARD HANDLING ====================
     function handleKeyboardBehavior() {
-        let keyboardHeight = 0;
-        let originalBodyHeight = document.body.style.height;
-        
-        // Handle visual viewport changes (keyboard showing/hiding)
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', () => {
-                const viewportHeight = window.visualViewport.height;
-                const windowHeight = window.innerHeight;
-                keyboardHeight = windowHeight - viewportHeight;
-                
-                if (keyboardHeight > 100) {
-                    // Keyboard is showing
-                    console.log('Keyboard showing, height:', keyboardHeight);
-                    
-                    // IMPORTANT: Keep header visible by adjusting body height
-                    document.body.style.height = `${viewportHeight}px`;
-                    document.body.style.overflow = 'hidden';
-                    
-                    // Adjust message area padding to account for keyboard
-                    const extraPadding = Math.max(keyboardHeight, 300);
-                    messageArea.style.paddingBottom = (extraPadding + 120) + 'px';
-                    
-                    // Scroll to bottom to show latest messages
-                    setTimeout(scrollToBottom, 100);
-                    
-                    // Ensure header stays visible
-                    document.querySelector('header').style.position = 'sticky';
-                    document.querySelector('header').style.top = '0';
-                    document.querySelector('header').style.zIndex = '1000';
-                } else {
-                    // Keyboard is hiding
-                    console.log('Keyboard hiding');
-                    
-                    // Restore body height
-                    document.body.style.height = originalBodyHeight || '100vh';
-                    document.body.style.overflow = '';
-                    
-                    // Restore message area padding
-                    messageArea.style.paddingBottom = '180px';
-                    
-                    // Ensure header stays in place
-                    document.querySelector('header').style.position = 'sticky';
-                }
-            });
-        }
-        
-        // When input is focused, ensure it's visible
-        messageInput.addEventListener('focus', () => {
-            console.log('Message input focused');
+        // Simple resize listener for keyboard detection
+        window.addEventListener('resize', () => {
+            const newHeight = window.innerHeight;
             
-            // Small delay to wait for keyboard animation
-            setTimeout(() => {
+            // If height decreased significantly, keyboard is showing
+            if (newHeight < initialWindowHeight - 200) {
+                isKeyboardVisible = true;
                 scrollToBottom();
-                
-                // Ensure header is visible
-                const header = document.querySelector('header');
-                if (header) {
-                    header.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 300);
+            } 
+            // If height returned to normal, keyboard is hiding
+            else if (newHeight >= initialWindowHeight - 50) {
+                isKeyboardVisible = false;
+            }
         });
-        
-        // When input loses focus, restore normal padding
+
+        // Focus handler - just scroll to bottom
+        messageInput.addEventListener('focus', () => {
+            isKeyboardVisible = true;
+            // Small delay to allow keyboard animation
+            setTimeout(scrollToBottom, 100);
+        });
+
+        // Blur handler
         messageInput.addEventListener('blur', () => {
-            console.log('Message input blurred');
-            
-            setTimeout(() => {
-                messageArea.style.paddingBottom = '180px';
-                
-                // Reset body height
-                document.body.style.height = originalBodyHeight || '100vh';
-            }, 200);
+            isKeyboardVisible = false;
         });
-        
-        // Prevent default behavior on touch events that might hide header
+
+        // Prevent default touch behavior that might cause issues
         document.addEventListener('touchstart', (e) => {
             if (e.target === messageInput || e.target === document.activeElement) {
-                e.preventDefault();
+                // Allow default for input focus
+                return;
             }
-        }, { passive: false });
+        }, { passive: true });
     }
 
     function scrollToBottom() {
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             messageArea.scrollTop = messageArea.scrollHeight;
             hideNewMessageIndicator();
-        }, 100);
+        });
     }
 
     // ==================== IMAGE CAROUSEL ====================
     function openImageCarousel(images, startIndex = 0) {
+        perfMark('carousel-open-start');
         currentCarouselImages = images;
         currentSlideIndex = startIndex;
         
@@ -1309,12 +1401,14 @@
         images.forEach((imageUrl, index) => {
             const slide = document.createElement('div');
             slide.className = 'carousel-slide';
+            slide.setAttribute('role', 'tabpanel');
+            slide.setAttribute('aria-label', `Image ${index + 1} of ${images.length}`);
             
             const img = document.createElement('img');
             img.className = 'carousel-image';
             img.src = imageUrl;
             img.alt = `Image ${index + 1}`;
-            img.loading = 'lazy';
+            img.loading = 'eager';
             
             // Add click to close on image
             img.addEventListener('click', closeCarousel);
@@ -1325,6 +1419,9 @@
             // Create indicator
             const indicator = document.createElement('div');
             indicator.className = 'carousel-indicator';
+            indicator.setAttribute('role', 'tab');
+            indicator.setAttribute('aria-label', `Go to image ${index + 1}`);
+            indicator.setAttribute('aria-selected', index === startIndex ? 'true' : 'false');
             if (index === startIndex) {
                 indicator.classList.add('active');
             }
@@ -1341,10 +1438,13 @@
         
         // Set initial position
         goToSlide(startIndex);
+        perfMark('carousel-open-end');
+        perfMeasure('carousel-open-duration', 'carousel-open-start', 'carousel-open-end');
     }
 
     function updateCarouselCounter() {
         carouselCount.textContent = `${currentSlideIndex + 1}/${currentCarouselImages.length}`;
+        carouselCount.setAttribute('aria-label', `Image ${currentSlideIndex + 1} of ${currentCarouselImages.length}`);
     }
 
     function goToSlide(index) {
@@ -1355,7 +1455,9 @@
         
         // Update indicators
         document.querySelectorAll('.carousel-indicator').forEach((indicator, i) => {
-            indicator.classList.toggle('active', i === index);
+            const isActive = i === index;
+            indicator.classList.toggle('active', isActive);
+            indicator.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
         
         updateCarouselCounter();
@@ -1372,10 +1474,13 @@
     }
 
     function closeCarousel() {
+        perfMark('carousel-close-start');
         imageCarousel.classList.remove('active');
         document.body.style.overflow = '';
         currentCarouselImages = [];
         currentSlideIndex = 0;
+        perfMark('carousel-close-end');
+        perfMeasure('carousel-close-duration', 'carousel-close-start', 'carousel-close-end');
     }
 
     // ==================== TYPING INDICATORS ====================
@@ -1391,10 +1496,12 @@
 
     // ==================== MESSAGE CREATION ====================
     function createMessageElement(message, isTemporary = false) {
+        perfMark('message-create-start');
         const isOutgoing = message.senderId === currentUserId;
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
         messageDiv.dataset.messageId = message.id;
+        messageDiv.setAttribute('role', 'article');
         
         if (isTemporary) {
             messageDiv.classList.add('temporary');
@@ -1406,7 +1513,6 @@
         contentContainer.className = 'message-content';
         
         if (message.type === 'text') {
-            // Sanitize text to prevent XSS
             const textContent = document.createElement('span');
             textContent.textContent = message.content;
             contentContainer.appendChild(textContent);
@@ -1476,11 +1582,14 @@
             messageDiv.appendChild(timestamp);
         }
         
+        perfMark('message-create-end');
+        perfMeasure('message-create-duration', 'message-create-start', 'message-create-end');
+        
         return messageDiv;
     }
 
     function addMessageToUI(message, isTemporary = false, shouldShowIndicator = false) {
-        // Check if message already exists (for double message prevention)
+        // Check if message already exists
         const existingMessage = document.querySelector(`[data-message-id="${message.id}"]`);
         if (existingMessage && !isTemporary) {
             console.log('Message already exists, skipping:', message.id);
@@ -1496,8 +1605,6 @@
                 scrollToBottom();
             }, 100);
         } else if (shouldShowIndicator && message.senderId !== currentUserId) {
-            // Only show "new messages" indicator for messages from other users
-            // and only if shouldShowIndicator is true
             showNewMessageIndicator();
         }
         
@@ -1525,24 +1632,10 @@
     function replaceTemporaryMessage(tempId, realMessage) {
         const tempMessage = document.querySelector(`[data-temp-id="${tempId}"]`);
         if (tempMessage) {
-            // Create the real message element
             const realMessageElement = createMessageElement(realMessage);
-            
-            // Replace the temporary message with the real one
             tempMessage.replaceWith(realMessageElement);
-            
-            console.log('Replaced temporary message:', tempId, 'with real message:', realMessage.id);
-            
-            // Scroll to show the new message
-            if (isUserAtBottom()) {
-                setTimeout(() => {
-                    scrollToBottom();
-                }, 100);
-            }
+            sendingMessages.delete(tempId);
         }
-        
-        // Clean up the sendingMessages map
-        sendingMessages.delete(tempId);
     }
 
     // ==================== WEBSOCKET MANAGER ====================
@@ -1675,15 +1768,9 @@
         handleNewMessage(message) {
             console.log('🆕 New message in chat:', message);
             
-            // Check if this message is from current user (meaning we sent it)
             if (message.senderId === currentUserId) {
-                // This is our own message coming back from server
-                console.log('Processing our own message from server:', message);
-                
-                // Find if we have a temporary message with similar content
                 let foundTempId = null;
                 
-                // Look through all temporary messages
                 document.querySelectorAll('.message.temporary').forEach(tempMsg => {
                     const tempId = tempMsg.dataset.tempId;
                     const contentElement = tempMsg.querySelector('.message-content span');
@@ -1692,7 +1779,6 @@
                         foundTempId = tempId;
                     }
                     
-                    // Also check for image messages
                     if (!foundTempId) {
                         const imgElement = tempMsg.querySelector('.message-content img');
                         if (imgElement && imgElement.src) {
@@ -1711,20 +1797,13 @@
                 });
                 
                 if (foundTempId) {
-                    // Replace the temporary message with the real one
                     replaceTemporaryMessage(foundTempId, message);
                 } else {
-                    // If no temporary message found, just add it normally
-                    // Don't show "new messages" indicator for our own messages
                     addMessageToUI(message, false, false);
                 }
             } else {
-                // This is a new message from the partner
-                // Show "new messages" indicator only if user is not at bottom
                 const shouldShowIndicator = !isUserAtBottom();
                 addMessageToUI(message, false, shouldShowIndicator);
-                
-                // Mark as read
                 this.sendMessageRead([message.id]);
             }
         }
@@ -1836,19 +1915,24 @@
     carouselPrev.addEventListener('click', prevSlide);
     carouselNext.addEventListener('click', nextSlide);
 
-    // Swipe for carousel
+    // Touch swipe for carousel
     let touchStartX = 0;
+    let touchStartY = 0;
     imageCarousel.addEventListener('touchstart', (e) => {
         touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
     });
     
     imageCarousel.addEventListener('touchend', (e) => {
         const touchEndX = e.changedTouches[0].screenX;
+        const touchEndY = e.changedTouches[0].screenY;
         const swipeThreshold = 50;
-        const diff = touchStartX - touchEndX;
+        const diffX = touchStartX - touchEndX;
+        const diffY = touchStartY - touchEndY;
         
-        if (Math.abs(diff) > swipeThreshold) {
-            if (diff > 0) {
+        // Only horizontal swipes
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > swipeThreshold) {
+            if (diffX > 0) {
                 nextSlide();
             } else {
                 prevSlide();
@@ -1880,6 +1964,8 @@
         const removeBtn = document.createElement('div');
         removeBtn.className = 'preview-remove';
         removeBtn.textContent = '×';
+        removeBtn.setAttribute('role', 'button');
+        removeBtn.setAttribute('aria-label', 'Remove image');
         
         item.appendChild(img);
         item.appendChild(progressOverlay);
@@ -1891,7 +1977,6 @@
         };
         reader.readAsDataURL(file);
         
-        // Create updateProgress function
         const updateProgress = (percent) => {
             file.progress = { value: percent };
             progressBar.style.setProperty('--progress-width', `${percent}%`);
@@ -1907,7 +1992,6 @@
             }
         };
         
-        // Store the updateProgress function
         file.updateProgress = updateProgress;
         
         removeBtn.onclick = () => {
@@ -1956,6 +2040,10 @@
                 typingTimer = null;
             }, 2000);
         }
+        
+        // Auto-resize textarea
+        messageInput.style.height = 'auto';
+        messageInput.style.height = Math.min(messageInput.scrollHeight, 100) + 'px';
     });
 
     messageInput.addEventListener('blur', () => {
@@ -1971,12 +2059,10 @@
         const text = messageInput.value.trim();
         if (!text) return;
 
-        // Generate a unique temporary ID
         const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         
-        // Create temporary message
         const tempMessage = {
-            id: tempId, // Use temp ID as ID for now
+            id: tempId,
             tempId: tempId,
             senderId: currentUserId,
             type: 'text',
@@ -1985,21 +2071,16 @@
             isRead: false
         };
 
-        // Add to UI immediately (don't show indicator for our own messages)
         addMessageToUI(tempMessage, true, false);
-        
-        // Store the temporary message info
         sendingMessages.set(tempId, {
             content: text,
             element: document.querySelector(`[data-temp-id="${tempId}"]`)
         });
 
-        // Clear input
         messageInput.value = '';
-        updateSendButton();
         messageInput.style.height = 'auto';
+        updateSendButton();
 
-        // Send to server
         try {
             const response = await fetch(`${API_BASE_URL}/message`, {
                 method: 'POST',
@@ -2037,7 +2118,6 @@
         const uploadedUrls = [];
         const tempIds = [];
         
-        // Show uploading progress for each image
         for (const [index, file] of pendingImages.entries()) {
             const tempId = 'temp-img-' + Date.now() + '-' + index + '-' + Math.random().toString(36).substr(2, 9);
             tempIds.push(tempId);
@@ -2055,27 +2135,22 @@
                 isRead: false
             };
 
-            // Add to UI immediately with progress bar (don't show indicator for our own messages)
             addMessageToUI(tempMessage, true, false);
-            
-            // Store the temporary message info
             sendingMessages.set(tempId, {
                 content: URL.createObjectURL(file),
                 element: document.querySelector(`[data-temp-id="${tempId}"]`)
             });
 
             try {
-                // Update preview progress
                 if (file.updateProgress) {
                     file.updateProgress(10);
                 }
 
                 const xhr = new XMLHttpRequest();
                 
-                // Track upload progress
                 xhr.upload.addEventListener('progress', (event) => {
                     if (event.lengthComputable) {
-                        const percentComplete = Math.round((event.loaded / event.total) * 90) + 10; // Start from 10%
+                        const percentComplete = Math.round((event.loaded / event.total) * 90) + 10;
                         if (file.updateProgress) {
                             file.updateProgress(percentComplete);
                         }
@@ -2083,7 +2158,6 @@
                     }
                 });
 
-                // Create a promise for the upload
                 const uploadPromise = new Promise((resolve, reject) => {
                     xhr.onload = () => {
                         if (xhr.status >= 200 && xhr.status < 300) {
@@ -2114,19 +2188,16 @@
                 
                 uploadedUrls.push(url);
 
-                // Complete progress
                 if (file.updateProgress) {
                     file.updateProgress(100);
                 }
                 updateUploadProgress(tempId, 100);
 
-                // Update message with real URL
                 const tempMessageEl = document.querySelector(`[data-temp-id="${tempId}"]`);
                 if (tempMessageEl) {
                     const img = tempMessageEl.querySelector('img');
                     if (img) img.src = url;
                     
-                    // Update the stored content
                     const tempData = sendingMessages.get(tempId);
                     if (tempData) {
                         tempData.content = url;
@@ -2143,7 +2214,6 @@
                     tempMessageEl.classList.add('error');
                 }
                 
-                // Update progress to show error
                 if (file.updateProgress) {
                     file.updateProgress(0);
                     const previewItem = tempMessageEl ? tempMessageEl.closest('.preview-item') : null;
@@ -2158,7 +2228,6 @@
             }
         }
 
-        // Send all images as one message
         if (uploadedUrls.length > 0) {
             try {
                 const response = await fetch(`${API_BASE_URL}/message`, {
@@ -2186,7 +2255,6 @@
             }
         }
 
-        // Clear preview area after a delay
         setTimeout(() => {
             previewArea.innerHTML = '';
             pendingImages = [];
@@ -2200,14 +2268,12 @@
             return;
         }
 
-        // Stop typing
         if (wsManager && typingTimer) {
             clearTimeout(typingTimer);
             wsManager.sendTypingEnd();
             typingTimer = null;
         }
 
-        // Send text first, then images
         await sendTextMessage();
         await sendImageMessages();
     }
@@ -2229,7 +2295,6 @@
     const emojiCategoriesEl = document.getElementById('emoji-categories');
     const emojiSearch = document.getElementById('emoji-search');
 
-    // Complete emoji list with all categories
     const emojiCategories = [
       {
         name: 'smileys',
@@ -2268,7 +2333,6 @@
     let activeCategory = 'smileys';
 
     function initEmojiPicker() {
-        // Create category buttons
         const categoryIcons = {
             'smileys': '😀',
             'people': '👋',
@@ -2283,21 +2347,27 @@
         Object.entries(categoryIcons).forEach(([category, icon]) => {
             const button = document.createElement('div');
             button.className = 'emoji-category';
-            if (category === activeCategory) button.classList.add('active');
-            button.textContent = icon;
-            button.title = category.charAt(0).toUpperCase() + category.slice(1);
-            button.addEventListener('click', () => {
-                document.querySelectorAll('.emoji-category').forEach(btn => btn.classList.remove('active'));
+            button.setAttribute('role', 'tab');
+            button.setAttribute('aria-label', category);
+            if (category === activeCategory) {
                 button.classList.add('active');
+                button.setAttribute('aria-selected', 'true');
+            }
+            button.textContent = icon;
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.emoji-category').forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.setAttribute('aria-selected', 'false');
+                });
+                button.classList.add('active');
+                button.setAttribute('aria-selected', 'true');
                 activeCategory = category;
                 renderEmojis();
             });
             emojiCategoriesEl.appendChild(button);
         });
 
-        // Search functionality
         emojiSearch.addEventListener('input', renderEmojis);
-
         renderEmojis();
     }
 
@@ -2319,12 +2389,12 @@
             emojisToShow = category ? category.emojis : emojiCategories[0].emojis;
         }
 
-        // Limit to 48 emojis per page for performance
         emojisToShow.slice(0, 48).forEach(emoji => {
             const span = document.createElement('span');
             span.className = 'emoji-item';
             span.textContent = emoji;
-            span.title = emoji;
+            span.setAttribute('role', 'button');
+            span.setAttribute('aria-label', `Emoji: ${emoji}`);
             span.addEventListener('click', () => {
                 messageInput.value += emoji;
                 messageInput.focus();
@@ -2360,6 +2430,7 @@
         }
         
         onlineStatusEl.textContent = statusText;
+        onlineStatusEl.setAttribute('aria-label', `Status: ${statusText}`);
     }
 
     async function loadChatHeader() {
@@ -2376,6 +2447,7 @@
 
                 partnerNameEl.textContent = partner.name || 'Unknown';
                 partnerAvatarEl.src = partner.avatar || fallbackImage;
+                partnerAvatarEl.alt = partner.name || 'Partner';
                 updatePartnerStatus(partner.status || 'offline');
                 return;
             }
@@ -2392,6 +2464,7 @@
 
                 partnerNameEl.textContent = partner.name || 'Unknown';
                 partnerAvatarEl.src = partner.avatar || fallbackImage;
+                partnerAvatarEl.alt = partner.name || 'Partner';
                 updatePartnerStatus(partner.status || 'offline');
                 return;
             }
@@ -2401,6 +2474,7 @@
             console.error('Header load error:', err);
             partnerNameEl.textContent = 'Error';
             partnerAvatarEl.src = fallbackImage;
+            partnerAvatarEl.alt = 'Error loading user';
         }
     }
 
@@ -2447,10 +2521,7 @@
                 }
             }
 
-            // Hide skeleton loader
             skeletonLoader.style.display = 'none';
-
-            // Clear message area
             messageArea.innerHTML = '';
 
             if (messages.length === 0) {
@@ -2478,6 +2549,7 @@
 
     // ==================== INITIALIZATION ====================
     async function init() {
+        perfMark('app-init-start');
         currentUserId = parseJwt(token);
         if (!currentUserId) {
             alert('Invalid session. Please log in again.');
@@ -2486,7 +2558,6 @@
             return;
         }
 
-        // Show skeleton loader while loading
         skeletonLoader.style.display = 'flex';
 
         await loadChatHeader();
@@ -2494,22 +2565,22 @@
         updateSendButton();
         initEmojiPicker();
         
-        // Initialize keyboard handling - IMPORTANT FIX
         handleKeyboardBehavior();
         
-        // Auto-resize textarea
         messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
             updateSendButton();
         });
 
-        // Backup refresh every 30 seconds
         setInterval(() => {
             if (!wsManager || !wsManager.isConnected) {
                 loadMessages();
             }
         }, 30000);
+        
+        perfMark('app-init-end');
+        perfMeasure('app-init-duration', 'app-init-start', 'app-init-end');
     }
 
     // Clean up
@@ -2521,7 +2592,6 @@
             clearTimeout(typingTimer);
         }
         
-        // Clean up object URLs
         document.querySelectorAll('.grouped-image').forEach(img => {
             if (img.src.startsWith('blob:')) {
                 URL.revokeObjectURL(img.src);
@@ -2529,9 +2599,7 @@
         });
     });
 
-    // Make functions globally available
     window.openImageCarousel = openImageCarousel;
-
     init();
 </script>
 </body>
