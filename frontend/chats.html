@@ -433,734 +433,408 @@
   <div id="toast"></div>
 
 <script>
-    const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
-    const API_BASE_URL = 'https://www.instaping.org/api';
-    let currentUserId = null;
-    let wsManager = null;
-    let allChats = [];
-    let customEventListeners = []; // Renamed from eventListeners
-    let loadedCount = 0;
-    const visibleChats = 20;
-    let typingTimeouts = new Map();
+   const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
+const API_BASE_URL = 'https://www.instaping.org/api';
+let currentUserId = null;
+let wsManager = null;
+let allChats = [];
+let customEventListeners = [];
+let loadedCount = 0;
+const visibleChats = 20;
+let typingTimeouts = new Map();
 
-    // ==================== UTILITY FUNCTIONS ====================
-    function showToast(message, duration = 2000) {
-        const toast = document.getElementById('toast');
-        toast.textContent = message;
-        toast.classList.add('show');
-        clearTimeout(toast.hideTimeout);
-        toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
+// ==================== UTILITY FUNCTIONS ====================
+function showToast(message, duration = 2000) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toast.hideTimeout);
+    toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+function showLoading(message = 'Loading...') {
+    const overlay = document.getElementById('loading-overlay');
+    const text = document.getElementById('loading-text');
+    text.textContent = message;
+    overlay.classList.add('show');
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    overlay.classList.remove('show');
+}
+
+function playNotificationSound() {
+    try {
+        const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+        audio.volume = 0.3;
+        audio.play().catch(e => console.log('Audio play failed:', e));
+    } catch (e) {
+        console.log('Audio not supported');
+    }
+}
+
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        const payload = JSON.parse(jsonPayload);
+        return payload.userId || payload.sub || payload.id || null;
+    } catch (e) {
+        console.error('Failed to parse JWT:', e);
+        return null;
+    }
+}
+
+function formatTimestamp(unix) {
+    if (!unix) return '';
+    const date = new Date(unix * 1000);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+
+    if (diffSec < 60) return 'Just now';
+    if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm';
+    if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h';
+
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function addCustomEventListener(element, event, handler) {
+    element.addEventListener(event, handler);
+    customEventListeners.push({ element, event, handler });
+}
+
+function cleanupEventListeners() {
+    customEventListeners.forEach(({ element, event, handler }) => {
+        element.removeEventListener(event, handler);
+    });
+    customEventListeners = [];
+}
+
+// ==================== WEBSOCKET MANAGER WITH IMPROVED POLLING FALLBACK ====================
+class ChatWebSocketManager {
+    constructor() {
+        this.socket = null;
+        this.reconnectInterval = 3000;
+        this.maxReconnectAttempts = 5;
+        this.reconnectAttempts = 0;
+        this.isConnected = false;
+        this.shouldReconnect = true;
+        this.messageListeners = [];
+        this.heartbeatInterval = 30000;
+        this.heartbeatTimer = null;
+        this.useWebSockets = true;
+        this.pollingInterval = null;
+        this.chatRefreshInterval = null;
+        
+        // Improved polling properties
+        this.lastChatUpdateTime = 0;
+        this.optimisticUpdates = new Map();
+        this.pollingBackoff = 5000;
+        this.maxPollingBackoff = 60000;
+        this.pollingFailures = 0;
+        this.maxPollingFailures = 3;
+        this.connectionStats = {
+            mode: 'websocket',
+            uptime: 0,
+            modeSwitches: 0,
+            totalPolls: 0,
+            successfulPolls: 0,
+            failedPolls: 0
+        };
     }
 
-    function showLoading(message = 'Loading...') {
-        const overlay = document.getElementById('loading-overlay');
-        const text = document.getElementById('loading-text');
-        text.textContent = message;
-        overlay.classList.add('show');
-    }
+    connect() {
+        if (this.socket?.readyState === WebSocket.OPEN) {
+            return;
+        }
 
-    function hideLoading() {
-        const overlay = document.getElementById('loading-overlay');
-        overlay.classList.remove('show');
-    }
+        const token = localStorage.getItem('token');
+        if (!token) {
+            console.warn('No token found, WebSocket connection deferred');
+            return;
+        }
 
-    function playNotificationSound() {
+        // Auto-detect if we should use WebSocket or polling
+        const isLocalhost = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1';
+        
+        // For production (Render), try WebSocket first but fall back to polling
+        let wsUrl;
+        
+        if (isLocalhost) {
+            wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
+            console.log('🔌 Connecting to Local WebSocket:', wsUrl);
+        } else {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host.replace(/^www\./, '');
+            wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
+            console.log('🌐 Connecting to Production WebSocket:', wsUrl);
+        }
+        
         try {
-            const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
-            audio.volume = 0.3;
-            audio.play().catch(e => console.log('Audio play failed:', e));
-        } catch (e) {
-            console.log('Audio not supported');
-        }
-    }
-
-    function parseJwt(token) {
-        try {
-            const base64Url = token.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-            const payload = JSON.parse(jsonPayload);
-            return payload.userId || payload.sub || payload.id || null;
-        } catch (e) {
-            console.error('Failed to parse JWT:', e);
-            return null;
-        }
-    }
-
-    function formatTimestamp(unix) {
-        if (!unix) return '';
-        const date = new Date(unix * 1000);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffSec = Math.floor(diffMs / 1000);
-
-        if (diffSec < 60) return 'Just now';
-        if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm';
-        if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h';
-
-        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    }
-
-    // Fixed: Renamed function to avoid conflict with native addEventListener
-    function addCustomEventListener(element, event, handler) {
-        element.addEventListener(event, handler);
-        customEventListeners.push({ element, event, handler });
-    }
-
-    function cleanupEventListeners() {
-        customEventListeners.forEach(({ element, event, handler }) => {
-            element.removeEventListener(event, handler);
-        });
-        customEventListeners = [];
-    }
-
-    // ==================== WEBSOCKET MANAGER WITH POLLING FALLBACK ====================
-    class ChatWebSocketManager {
-        constructor() {
-            this.socket = null;
-            this.reconnectInterval = 3000;
-            this.maxReconnectAttempts = 5;
-            this.reconnectAttempts = 0;
-            this.isConnected = false;
-            this.shouldReconnect = true;
-            this.messageListeners = [];
-            this.heartbeatInterval = 30000;
-            this.heartbeatTimer = null;
-            this.useWebSockets = true; // Set to false to force HTTP polling
-            this.pollingInterval = null;
-            this.chatRefreshInterval = null;
-        }
-
-        connect() {
-            if (this.socket?.readyState === WebSocket.OPEN) {
-                return;
-            }
-
-            const token = localStorage.getItem('token');
-            if (!token) {
-                console.warn('No token found, WebSocket connection deferred');
-                return;
-            }
-
-            // Auto-detect if we should use WebSocket or polling
-            const isLocalhost = window.location.hostname === 'localhost' || 
-                               window.location.hostname === '127.0.0.1';
+            this.socket = new WebSocket(wsUrl);
             
-            // For production (Render), try WebSocket first but fall back to polling
-            let wsUrl;
-            
-            if (isLocalhost) {
-                // Local development - use WebSocket
-                wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
-                console.log('🔌 Connecting to Local WebSocket:', wsUrl);
-            } else {
-                // Production - try WebSocket with auto-detected protocol
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const host = window.location.host.replace(/^www\./, '');
-                wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
-                console.log('🌐 Connecting to Production WebSocket:', wsUrl);
-            }
-            
-            try {
-                this.socket = new WebSocket(wsUrl);
+            this.socket.onopen = () => {
+                console.log('✅ WebSocket connected');
+                this.isConnected = true;
+                this.reconnectAttempts = 0;
+                this.useWebSockets = true;
+                this.connectionStats.mode = 'websocket';
                 
-                this.socket.onopen = () => {
-                    console.log('✅ WebSocket connected');
-                    this.isConnected = true;
-                    this.reconnectAttempts = 0;
-                    this.useWebSockets = true;
-                    
-                    // Start heartbeat
-                    this.startHeartbeat();
-                    
-                    // Subscribe to chat updates
-                    this.send({
-                        type: 'subscribe',
-                        channel: 'chat_updates'
-                    });
-                    
-                    this.send({
-                        type: 'subscribe',
-                        channel: 'message_updates'
-                    });
-                    
-                    showToast('💬 Live chat updates active');
-                    
-                    // Clear any polling intervals since WebSocket is working
-                    if (this.pollingInterval) {
-                        clearInterval(this.pollingInterval);
-                        this.pollingInterval = null;
-                    }
-                    if (this.chatRefreshInterval) {
-                        clearInterval(this.chatRefreshInterval);
-                        this.chatRefreshInterval = null;
-                    }
-                };
+                // Start heartbeat
+                this.startHeartbeat();
+                
+                // Subscribe to chat updates
+                this.send({
+                    type: 'subscribe',
+                    channel: 'chat_updates'
+                });
+                
+                this.send({
+                    type: 'subscribe',
+                    channel: 'message_updates'
+                });
+                
+                showToast('💬 Live chat updates active');
+                
+                // Clear any polling intervals since WebSocket is working
+                this.stopPolling();
+                this.stopChatRefresh();
+                
+                // Reset polling stats
+                this.pollingFailures = 0;
+                this.pollingBackoff = 5000;
+            };
 
-                this.socket.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        console.log('📨 WebSocket message:', data);
-                        this.handleMessage(data);
-                        
-                        // Notify all listeners
-                        this.messageListeners.forEach(listener => listener(data));
-                    } catch (error) {
-                        console.error('Error parsing WebSocket message:', error);
-                    }
-                };
-
-                this.socket.onclose = (event) => {
-                    console.log('❌ WebSocket disconnected');
-                    this.isConnected = false;
+            this.socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('📨 WebSocket message:', data);
+                    this.handleMessage(data);
                     
-                    // Show toast only if we were connected
-                    if (this.shouldReconnect) {
-                        showToast('🔌 Reconnecting...');
-                    }
-                    
-                    if (this.heartbeatTimer) {
-                        clearInterval(this.heartbeatTimer);
-                        this.heartbeatTimer = null;
-                    }
-                    
-                    if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-                        this.reconnectAttempts++;
-                        console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
-                        setTimeout(() => this.connect(), this.reconnectInterval);
-                    } else if (this.shouldReconnect) {
-                        console.error('Max reconnection attempts reached, switching to polling mode');
-                        showToast('📡 Using polling mode (slower updates)');
-                        this.switchToPollingMode();
-                    }
-                };
+                    // Notify all listeners
+                    this.messageListeners.forEach(listener => listener(data));
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
+            };
 
-                this.socket.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                };
-
-            } catch (error) {
-                console.error('Failed to create WebSocket:', error);
+            this.socket.onclose = (event) => {
+                console.log('❌ WebSocket disconnected');
+                this.isConnected = false;
+                
+                if (this.heartbeatTimer) {
+                    clearInterval(this.heartbeatTimer);
+                    this.heartbeatTimer = null;
+                }
                 
                 if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
                     this.reconnectAttempts++;
+                    console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+                    
+                    // Show toast only on first disconnect
+                    if (this.reconnectAttempts === 1) {
+                        showToast('🔌 Reconnecting...');
+                    }
+                    
                     setTimeout(() => this.connect(), this.reconnectInterval);
                 } else if (this.shouldReconnect) {
+                    console.error('Max reconnection attempts reached, switching to polling mode');
                     this.switchToPollingMode();
                 }
-            }
-        }
+            };
 
-        switchToPollingMode() {
-            console.log('🔄 Switching to HTTP polling mode');
-            this.useWebSockets = false;
-            this.isConnected = false;
+            this.socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+        } catch (error) {
+            console.error('Failed to create WebSocket:', error);
             
-            // Start polling for updates
-            this.startPolling();
-            
-            // Start periodic refresh of chats
-            this.startChatRefresh();
-        }
-
-        startPolling() {
-            // Poll for new messages every 3 seconds
-            if (!this.pollingInterval) {
-                this.pollingInterval = setInterval(async () => {
-                    if (!this.useWebSockets) {
-                        await this.pollForNewMessages();
-                    }
-                }, 3000);
-            }
-        }
-
-        async pollForNewMessages() {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) return;
-
-                // Get the latest chat to check for updates
-                const response = await fetch(`${API_BASE_URL}/chats?limit=1&sort=updated`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (response.ok) {
-                    const chats = await response.json();
-                    if (chats.length > 0) {
-                        const latestChat = chats[0];
-                        
-                        // Check if this chat is already in our list
-                        const existingChat = allChats.find(c => c.id === latestChat.id);
-                        
-                        if (!existingChat || 
-                            (latestChat.lastMessageAt && existingChat.lastMessageAt && 
-                             latestChat.lastMessageAt > existingChat.lastMessageAt)) {
-                            
-                            console.log('🔄 Polling detected chat update:', latestChat.id);
-                            
-                            // Trigger a reload of chats
-                            loadChats();
-                            
-                            // Play notification sound if there's a new message
-                            if (latestChat.lastMessage && 
-                                latestChat.lastMessage.senderId !== currentUserId) {
-                                playNotificationSound();
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Polling error:', error);
-            }
-        }
-
-        startChatRefresh() {
-            // Refresh entire chat list every 30 seconds in polling mode
-            if (!this.chatRefreshInterval) {
-                this.chatRefreshInterval = setInterval(() => {
-                    if (!this.useWebSockets) {
-                        console.log('🔄 Periodic chat refresh in polling mode');
-                        loadChats();
-                    }
-                }, 30000);
-            }
-        }
-
-        startHeartbeat() {
-            this.heartbeatTimer = setInterval(() => {
-                if (this.socket?.readyState === WebSocket.OPEN) {
-                    this.send({ type: 'ping' });
-                }
-            }, this.heartbeatInterval);
-        }
-
-        send(data) {
-            if (this.socket?.readyState === WebSocket.OPEN) {
-                this.socket.send(JSON.stringify(data));
-                return true;
-            } else if (this.useWebSockets) {
-                console.warn('WebSocket not ready, retrying...');
-                setTimeout(() => this.send(data), 1000);
-                return false;
-            } else {
-                console.log('📡 Polling mode active - skipping WebSocket send');
-                return false;
-            }
-        }
-
-        handleMessage(data) {
-            const { type, payload } = data;
-            
-            switch (type) {
-                case 'new_message':
-                    this.handleNewMessage(payload);
-                    break;
-                    
-                case 'message_read':
-                    this.handleMessageRead(payload);
-                    break;
-                    
-                case 'typing_start':
-                    this.handleTypingStart(payload);
-                    break;
-                    
-                case 'typing_end':
-                    this.handleTypingEnd(payload);
-                    break;
-                    
-                case 'user_status_update':
-                    this.handleUserStatusUpdate(payload);
-                    break;
-                    
-                case 'chat_created':
-                    this.handleChatCreated(payload);
-                    break;
-                    
-                case 'pong':
-                    console.log('❤️ WebSocket heartbeat received');
-                    break;
-                    
-                default:
-                    console.log('Unknown WebSocket message type:', type);
-            }
-        }
-
-        handleNewMessage(message) {
-            console.log('🆕 New message received:', message);
-            
-            // Play notification sound if message is not from current user
-            if (message.senderId !== currentUserId) {
-                playNotificationSound();
-                showToast(`💬 New message from ${message.sender?.name || 'Someone'}`);
-            }
-            
-            // Update the chat list
-            updateChatInList(message);
-        }
-
-        handleMessageRead(payload) {
-            console.log('📖 Message read update:', payload);
-            // Update read receipts in the UI
-            updateReadReceipts(payload.chatId, payload.messageIds);
-        }
-
-        handleTypingStart(payload) {
-            console.log('✍️ User typing:', payload);
-            // Show typing indicator
-            showTypingIndicator(payload.chatId, payload.userId);
-            
-            // Auto-hide typing indicator after 3 seconds (in case typing_end doesn't arrive)
-            if (typingTimeouts.has(payload.chatId)) {
-                clearTimeout(typingTimeouts.get(payload.chatId));
-            }
-            typingTimeouts.set(payload.chatId, setTimeout(() => {
-                hideTypingIndicator(payload.chatId);
-            }, 3000));
-        }
-
-        handleTypingEnd(payload) {
-            console.log('⏹️ User stopped typing:', payload);
-            // Hide typing indicator
-            hideTypingIndicator(payload.chatId);
-            
-            // Clear timeout
-            if (typingTimeouts.has(payload.chatId)) {
-                clearTimeout(typingTimeouts.get(payload.chatId));
-                typingTimeouts.delete(payload.chatId);
-            }
-        }
-
-        handleUserStatusUpdate(payload) {
-            console.log('📊 User status updated:', payload);
-            // Update online status in chat list
-            updateUserStatus(payload.userId, payload.status);
-        }
-
-        handleChatCreated(payload) {
-            console.log('💬 New chat created:', payload);
-            // Add new chat to the list
-            addNewChat(payload);
-        }
-
-        disconnect() {
-            this.shouldReconnect = false;
-            
-            // Clear polling intervals
-            if (this.pollingInterval) {
-                clearInterval(this.pollingInterval);
-                this.pollingInterval = null;
-            }
-            
-            if (this.chatRefreshInterval) {
-                clearInterval(this.chatRefreshInterval);
-                this.chatRefreshInterval = null;
-            }
-            
-            if (this.heartbeatTimer) {
-                clearInterval(this.heartbeatTimer);
-                this.heartbeatTimer = null;
-            }
-            
-            if (this.socket) {
-                this.socket.close();
-                this.socket = null;
-            }
-            
-            this.isConnected = false;
-            this.useWebSockets = true; // Reset for next connection attempt
-        }
-
-        sendTypingStart(chatId) {
-            this.send({
-                type: 'typing_start',
-                payload: { chatId }
-            });
-        }
-
-        sendTypingEnd(chatId) {
-            this.send({
-                type: 'typing_end', 
-                payload: { chatId }
-            });
-        }
-
-        sendMessageRead(chatId, messageIds) {
-            this.send({
-                type: 'message_read',
-                payload: { chatId, messageIds }
-            });
-        }
-        
-        addMessageListener(listener) {
-            this.messageListeners.push(listener);
-        }
-        
-        removeMessageListener(listener) {
-            const index = this.messageListeners.indexOf(listener);
-            if (index > -1) {
-                this.messageListeners.splice(index, 1);
+            if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                setTimeout(() => this.connect(), this.reconnectInterval);
+            } else if (this.shouldReconnect) {
+                this.switchToPollingMode();
             }
         }
     }
 
-    // ==================== UI UPDATE FUNCTIONS ====================
-    function updateChatInList(message) {
-        console.log('🔄 updateChatInList called for chat:', message.chatId);
+    switchToPollingMode() {
+        console.log('🔄 Switching to HTTP polling mode');
+        this.useWebSockets = false;
+        this.isConnected = false;
+        this.connectionStats.mode = 'polling';
+        this.connectionStats.modeSwitches++;
         
-        const chatListEl = document.getElementById('chat-list');
-        const emptyStateEl = document.getElementById('empty-state');
+        // Silent switch - don't show toast unless it's been a while
+        if (this.reconnectAttempts >= 3) {
+            showToast('📡 Using polling mode (slower updates)');
+        }
         
-        // Check if chat exists
-        let chatItem = chatListEl.querySelector(`[data-chat-id="${message.chatId}"]`);
+        // Start polling for updates
+        this.startPolling();
         
-        if (chatItem) {
-            console.log('✅ Chat found, updating...');
-            
-            // Move chat to top
-            chatListEl.insertBefore(chatItem, chatListEl.firstChild);
-            
-            // Update last message preview
-            const lastMessageEl = chatItem.querySelector('.last-message');
-            if (lastMessageEl) {
-                let preview = message.content || '';
-                let previewIcon = '';
+        // Start periodic refresh of chats (but more subtly)
+        this.startChatRefresh();
+        
+        // Log analytics if available
+        if (typeof gtag !== 'undefined') {
+            gtag('event', 'connection_mode_switch', {
+                'event_category': 'network',
+                'event_label': 'websocket_to_polling'
+            });
+        }
+    }
+
+    startPolling() {
+        // Poll for new messages with current backoff interval
+        if (!this.pollingInterval) {
+            console.log(`📡 Starting polling with ${this.pollingBackoff}ms interval`);
+            this.pollingInterval = setInterval(async () => {
+                if (!this.useWebSockets) {
+                    await this.pollForNewMessages();
+                }
+            }, this.pollingBackoff);
+        }
+    }
+
+    stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+    }
+
+    async pollForNewMessages() {
+        this.connectionStats.totalPolls++;
+        const startTime = Date.now();
+        
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            // Get only chats that have been updated since last check
+            const response = await fetch(`${API_BASE_URL}/chats?since=${this.lastChatUpdateTime}&limit=50`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                this.connectionStats.successfulPolls++;
+                const updatedChats = await response.json();
                 
-                // Determine message type
-                if (message.type === 'image' || (message.content && (message.content.includes('res.cloudinary.com') || message.content.includes('image') || message.content.includes('photo')))) {
-                    preview = 'Photo';
-                    previewIcon = '<svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
-                } else if (message.type === 'voice' || message.type === 'audio') {
-                    preview = 'Voice message';
-                    previewIcon = '<svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>';
-                } else {
-                    preview = message.content || 'Message';
+                if (updatedChats.length > 0) {
+                    console.log('🔄 Polling found', updatedChats.length, 'updated chats');
+                    
+                    // Update last update time
+                    this.lastChatUpdateTime = Math.floor(Date.now() / 1000);
+                    
+                    // Process each updated chat individually
+                    updatedChats.forEach(chat => {
+                        this.processUpdatedChat(chat);
+                    });
+                    
+                    // Reset failures on successful poll
+                    this.pollingFailures = 0;
+                    this.pollingBackoff = 5000; // Reset to initial interval
+                    
+                    // Restart polling with normal interval
+                    this.stopPolling();
+                    this.startPolling();
                 }
                 
-                lastMessageEl.innerHTML = `
-                    ${previewIcon}
-                    ${preview.length > 30 ? preview.substring(0, 30) + '...' : preview}
-                `;
-            }
-            
-            // Update timestamp
-            const timestampEl = chatItem.querySelector('.timestamp');
-            if (timestampEl) {
-                timestampEl.textContent = formatTimestamp(message.createdAt || Math.floor(Date.now() / 1000));
-            }
-            
-            // Update unread count if message is not from current user
-            if (message.senderId !== currentUserId) {
-                const unreadCountEl = chatItem.querySelector('.unread-count');
-                if (unreadCountEl) {
-                    const currentCount = parseInt(unreadCountEl.textContent) || 0;
-                    unreadCountEl.textContent = currentCount + 1;
-                } else {
-                    const chatMeta = chatItem.querySelector('.chat-meta');
-                    if (chatMeta) {
-                        chatMeta.innerHTML = `
-                            <div class="timestamp">${formatTimestamp(message.createdAt)}</div>
-                            <div class="unread-count">1</div>
-                        `;
-                    }
-                }
+                // Record ping time
+                const pingTime = Date.now() - startTime;
+                console.log(`📡 Poll completed in ${pingTime}ms`);
+                
             } else {
-                // If message is from current user, clear unread count
-                const unreadCountEl = chatItem.querySelector('.unread-count');
-                if (unreadCountEl) {
-                    unreadCountEl.remove();
-                }
+                throw new Error(`HTTP ${response.status}`);
             }
             
-        } else {
-            console.log('❌ Chat not found in list, reloading chats...');
-            // Chat not in list, reload all chats
-            loadChats();
-        }
-    }
-
-    function updateReadReceipts(chatId, messageIds) {
-        const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
-        if (chatItem) {
-            const unreadCountEl = chatItem.querySelector('.unread-count');
-            if (unreadCountEl) {
-                unreadCountEl.remove();
+        } catch (error) {
+            console.error('Polling error:', error);
+            this.connectionStats.failedPolls++;
+            this.pollingFailures++;
+            
+            // Exponential backoff
+            if (this.pollingFailures <= this.maxPollingFailures) {
+                this.pollingBackoff = Math.min(
+                    this.pollingBackoff * 2,
+                    this.maxPollingBackoff
+                );
+                
+                console.log(`⚠️ Polling backoff to ${this.pollingBackoff}ms (failure ${this.pollingFailures}/${this.maxPollingFailures})`);
+                
+                // Restart polling with new interval
+                this.stopPolling();
+                this.startPolling();
+            } else {
+                console.error('Max polling failures reached, stopping polling');
+                this.stopPolling();
+                showToast('⚠️ Connection issues - refresh page to retry');
             }
         }
     }
 
-    function updateUserStatus(userId, status) {
-        const chatItems = document.querySelectorAll(`[data-user-id="${userId}"]`);
-        chatItems.forEach(item => {
-            const onlineDot = item.querySelector('.online-dot');
-            if (onlineDot) {
-                onlineDot.style.display = status === 'offline' ? 'none' : 'block';
-                onlineDot.classList.remove('busy', 'away');
-                if (status === 'available') {
-                    onlineDot.style.backgroundColor = '#00FF00';
-                } else if (status === 'busy') {
-                    onlineDot.style.backgroundColor = '#FFFF00';
-                    onlineDot.classList.add('busy');
-                } else if (status === 'away') {
-                    onlineDot.style.backgroundColor = '#FF0000';
-                    onlineDot.classList.add('away');
-                }
-            }
-        });
-    }
-
-    function showTypingIndicator(chatId, userId) {
-        const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
-        if (chatItem) {
-            const lastMessageEl = chatItem.querySelector('.last-message');
-            if (lastMessageEl) {
-                lastMessageEl.innerHTML = `
-                    <div class="typing-indicator">
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <span>typing...</span>
-                    </div>
-                `;
-            }
-        }
-    }
-
-    function hideTypingIndicator(chatId) {
-        const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
-        if (chatItem) {
-            // Find the chat in allChats to restore the last message
-            const chat = allChats.find(c => c.id === chatId);
-            if (chat && chat.lastMessage) {
-                const lastMessageEl = chatItem.querySelector('.last-message');
-                if (lastMessageEl) {
-                    let preview = chat.lastMessage.content || '';
-                    let previewIcon = '';
+    processUpdatedChat(updatedChat) {
+        // Check if we already have this chat
+        const existingChatIndex = allChats.findIndex(c => c.id === updatedChat.id);
+        
+        if (existingChatIndex !== -1) {
+            // Chat exists - update it in place
+            const existingChat = allChats[existingChatIndex];
+            
+            // Check if there's actually new content
+            const hasNewMessage = updatedChat.lastMessageAt && 
+                                 (!existingChat.lastMessageAt || 
+                                  updatedChat.lastMessageAt > existingChat.lastMessageAt);
+            
+            const hasUnreadChange = updatedChat.unreadCount !== existingChat.unreadCount;
+            const hasStatusChange = updatedChat.partner?.status !== existingChat.partner?.status;
+            
+            if (hasNewMessage || hasUnreadChange || hasStatusChange) {
+                console.log('📱 Updating chat in place:', updatedChat.id);
+                
+                // Update the chat in our array
+                allChats[existingChatIndex] = updatedChat;
+                
+                // Update the UI without full refresh
+                this.updateChatInUI(updatedChat);
+                
+                // Play notification sound if there's a new message not from current user
+                if (hasNewMessage && updatedChat.lastMessage && 
+                    updatedChat.lastMessage.senderId !== currentUserId) {
+                    playNotificationSound();
                     
-                    if (chat.lastMessage.type === 'image') {
-                        preview = 'Photo';
-                        previewIcon = '<svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+                    // Show subtle notification only if user isn't currently viewing chats
+                    if (!document.hasFocus()) {
+                        showToast(`💬 New message from ${updatedChat.partner?.name || 'Someone'}`);
                     }
-                    
-                    lastMessageEl.innerHTML = `
-                        ${previewIcon}
-                        ${preview.length > 30 ? preview.substring(0, 30) + '...' : preview}
-                    `;
                 }
             }
-        }
-    }
-
-    function addNewChat(chatData) {
-        console.log('➕ Adding new chat to list:', chatData.id);
-        
-        const chatListEl = document.getElementById('chat-list');
-        const emptyStateEl = document.getElementById('empty-state');
-        
-        // Hide empty state if showing
-        if (emptyStateEl.classList.contains('show')) {
-            emptyStateEl.classList.remove('show');
-        }
-        
-        // Check if chat already exists
-        if (document.querySelector(`[data-chat-id="${chatData.id}"]`)) {
-            console.log('Chat already exists, skipping...');
-            return;
-        }
-        
-        // Add new chat to the top
-        const partner = chatData.partner || { name: 'Unknown', avatar: fallbackImage, status: 'offline' };
-        const isOnline = partner.status === 'available';
-        const isBusy = partner.status === 'busy';
-        const isAway = partner.status === 'away';
-        
-        const item = document.createElement('div');
-        item.className = 'chat-item';
-        item.dataset.chatId = chatData.id;
-        item.dataset.userId = partner.id || '';
-        item.setAttribute('role', 'button');
-        item.setAttribute('tabindex', '0');
-        item.setAttribute('aria-label', `Chat with ${partner.name || 'Unknown'}. No unread messages`);
-        item.innerHTML = `
-            <div class="profile-photo">
-                <img src="${partner.avatar || fallbackImage}" alt="${partner.name}" onerror="this.src='${fallbackImage}'">
-                ${isOnline || isBusy || isAway ? 
-                    `<div class="online-dot ${isBusy ? 'busy' : ''} ${isAway ? 'away' : ''}"></div>` : ''}
-            </div>
-            <div class="chat-details">
-                <div class="chat-name">${partner.name || 'Unknown'}</div>
-                <div class="last-message">
-                    <svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle">
-                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                    </svg>
-                    Start the conversation
-                </div>
-            </div>
-            <div class="chat-meta">
-                <div class="timestamp">Just now</div>
-            </div>
-        `;
-        
-        // Add click handler
-        addCustomEventListener(item, 'click', () => {
-            window.location.href = `chat.html?id=${chatData.id}`;
-        });
-        
-        // Add keyboard support
-        addCustomEventListener(item, 'keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                window.location.href = `chat.html?id=${chatData.id}`;
-            }
-        });
-        
-        // Insert at top
-        if (chatListEl.firstChild) {
-            chatListEl.insertBefore(item, chatListEl.firstChild);
         } else {
-            chatListEl.appendChild(item);
+            // New chat - add it to the list
+            console.log('➕ Adding new chat from polling:', updatedChat.id);
+            allChats.unshift(updatedChat);
+            this.addNewChatToUI(updatedChat);
         }
-        
-        // Add to allChats array
-        allChats.unshift(chatData);
-        
-        console.log('✅ New chat added to list');
     }
 
-    // ==================== CHAT RENDERING ====================
-    function renderChats(chats, append = false) {
-        console.log('🎨 Rendering chats:', chats.length, 'append:', append);
-        
+    updateChatInUI(chat) {
         const chatListEl = document.getElementById('chat-list');
-        const emptyStateEl = document.getElementById('empty-state');
-
-        if (!append) {
-            loadedCount = 0;
-            // Clear existing chats (except shimmer which is already hidden)
-            const existingChats = chatListEl.querySelectorAll('.chat-item');
-            existingChats.forEach(chat => chat.remove());
-        }
-
-        if (chats.length === 0 && !append) {
-            emptyStateEl.classList.add('show');
-            emptyStateEl.querySelector('.empty-title').textContent = 'No chats yet';
-            emptyStateEl.querySelector('.empty-subtitle').textContent = 'Start a conversation to connect with others';
-            return;
-        }
-
-        if (!append) {
-            emptyStateEl.classList.remove('show');
-        }
-
-        // Sort chats by lastMessageAt (newest first)
-        const chatsToRender = [...chats].sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
-        const chatsToShow = chatsToRender.slice(loadedCount, loadedCount + visibleChats);
-
-        chatsToShow.forEach((chat, index) => {
+        const chatItem = chatListEl.querySelector(`[data-chat-id="${chat.id}"]`);
+        
+        if (chatItem) {
+            // Get partner info
             const partner = chat.partner || { name: 'Unknown', avatar: fallbackImage, status: 'offline' };
             const isOnline = partner.status === 'available';
             const isBusy = partner.status === 'busy';
             const isAway = partner.status === 'away';
 
+            // Prepare last message preview
             let lastPreview = 'No messages yet';
             let previewIcon = '';
 
@@ -1194,308 +868,824 @@
                 ? `<div class="unread-count">${unreadCount > 99 ? '99+' : unreadCount}</div>` 
                 : '';
 
-            const item = document.createElement('div');
-            item.className = 'chat-item';
-            item.dataset.chatId = chat.id;
-            item.dataset.userId = partner.id || '';
-            item.setAttribute('role', 'button');
-            item.setAttribute('tabindex', '0');
-            item.setAttribute('aria-label', `Chat with ${partner.name || 'Unknown'}. ${unreadCount > 0 ? `${unreadCount} unread messages` : 'No unread messages'}. Last message: ${lastPreview}`);
-            item.innerHTML = `
-                <div class="profile-photo">
-                    <img src="${partner.avatar || fallbackImage}" alt="${partner.name}" onerror="this.src='${fallbackImage}'">
-                    ${isOnline || isBusy || isAway ? 
-                        `<div class="online-dot ${isBusy ? 'busy' : ''} ${isAway ? 'away' : ''}"></div>` : ''}
-                </div>
-                <div class="chat-details">
-                    <div class="chat-name">${partner.name || 'Unknown'}</div>
-                    <div class="last-message">
-                        ${previewIcon}
-                        ${lastPreview}
-                    </div>
-                </div>
-                <div class="chat-meta">
-                    <div class="timestamp">${formatTimestamp(chat.lastMessageAt)}</div>
-                    ${unreadBadge}
-                </div>
-            `;
+            // Update the chat item content
+            const chatDetails = chatItem.querySelector('.chat-details');
+            const chatMeta = chatItem.querySelector('.chat-meta');
+            const profilePhoto = chatItem.querySelector('.profile-photo');
             
-            // Add click handler
-            addCustomEventListener(item, 'click', () => {
-                console.log('Opening chat:', chat.id);
-                window.location.href = `chat.html?id=${chat.id}`;
-            });
-            
-            // Add keyboard support
-            addCustomEventListener(item, 'keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    window.location.href = `chat.html?id=${chat.id}`;
+            if (chatDetails) {
+                const chatName = chatDetails.querySelector('.chat-name');
+                const lastMessage = chatDetails.querySelector('.last-message');
+                
+                if (chatName) chatName.textContent = partner.name || 'Unknown';
+                if (lastMessage) {
+                    lastMessage.innerHTML = `${previewIcon}${lastPreview}`;
                 }
-            });
-            
-            chatListEl.appendChild(item);
-        });
-        
-        loadedCount += chatsToShow.length;
-        
-        // Add infinite scroll listener if not already added
-        if (!window.chatScrollHandler) {
-            window.chatScrollHandler = () => {
-                if (chatListEl.scrollTop + chatListEl.clientHeight >= chatListEl.scrollHeight - 100) {
-                    if (loadedCount < chats.length) {
-                        renderChats(chats, true);
-                    }
-                }
-            };
-            addCustomEventListener(chatListEl, 'scroll', window.chatScrollHandler);
-        }
-        
-        console.log(`✅ ${chatsToShow.length} chats rendered (total loaded: ${loadedCount}/${chats.length})`);
-    }
-
-    // ==================== MAIN LOADING FUNCTION ====================
-    async function loadChats() {
-        const chatListEl = document.getElementById('chat-list');
-        const emptyStateEl = document.getElementById('empty-state');
-        const shimmerEl = document.getElementById('shimmer');
-
-        // Get token from localStorage
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-            showToast('Please log in first.');
-            setTimeout(() => window.location.href = 'login.html', 1500);
-            return;
-        }
-
-        // Show shimmer, hide empty state
-        shimmerEl.classList.remove('hidden');
-        emptyStateEl.classList.remove('show');
-
-        try {
-            console.log('📡 Loading chats from API...');
-            const res = await fetch(`${API_BASE_URL}/chats`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            if (!res.ok) {
-                if (res.status === 401) {
-                    // Token expired or invalid
-                    showToast('Session expired. Please log in again.');
-                    localStorage.removeItem('token');
-                    setTimeout(() => window.location.href = 'login.html', 1500);
-                    return;
-                }
-                throw new Error(`HTTP error! status: ${res.status}`);
             }
             
-            const data = await res.json();
-            allChats = Array.isArray(data) ? data : [];
-            console.log(`✅ ${allChats.length} chats loaded`);
-
-            // Hide shimmer
-            shimmerEl.classList.add('hidden');
-            renderChats(allChats);
-        } catch (err) {
-            console.error('❌ Chats load error:', err);
+            if (chatMeta) {
+                chatMeta.innerHTML = `
+                    <div class="timestamp">${formatTimestamp(chat.lastMessageAt)}</div>
+                    ${unreadBadge}
+                `;
+            }
             
-            // Specific error messages
-            if (err.message.includes('Failed to fetch')) {
-                showToast('Network error. Check your internet connection.');
-            } else if (err.message.includes('401')) {
+            // Update online status
+            const onlineDot = profilePhoto.querySelector('.online-dot');
+            if (onlineDot) {
+                if (isOnline || isBusy || isAway) {
+                    onlineDot.style.display = 'block';
+                    onlineDot.classList.remove('busy', 'away');
+                    if (isBusy) onlineDot.classList.add('busy');
+                    if (isAway) onlineDot.classList.add('away');
+                } else {
+                    onlineDot.style.display = 'none';
+                }
+            }
+            
+            // Move to top if there's a new message (within last minute)
+            if (chat.lastMessageAt && chat.lastMessageAt > (Date.now() / 1000 - 60)) {
+                chatListEl.insertBefore(chatItem, chatListEl.firstChild);
+            }
+            
+            // Add subtle animation for the update
+            chatItem.classList.add('updated');
+            setTimeout(() => chatItem.classList.remove('updated'), 1000);
+        }
+    }
+
+    addNewChatToUI(chat) {
+        const chatListEl = document.getElementById('chat-list');
+        const emptyStateEl = document.getElementById('empty-state');
+        
+        // Hide empty state if showing
+        if (emptyStateEl.classList.contains('show')) {
+            emptyStateEl.classList.remove('show');
+        }
+        
+        // Check if chat already exists in UI
+        if (chatListEl.querySelector(`[data-chat-id="${chat.id}"]`)) {
+            return;
+        }
+        
+        // Get partner info
+        const partner = chat.partner || { name: 'Unknown', avatar: fallbackImage, status: 'offline' };
+        const isOnline = partner.status === 'available';
+        const isBusy = partner.status === 'busy';
+        const isAway = partner.status === 'away';
+
+        // Prepare last message preview
+        let lastPreview = 'No messages yet';
+        let previewIcon = '';
+
+        if (chat.lastMessage) {
+            const msg = chat.lastMessage;
+            if (typeof msg === 'object' && msg.type === 'image') {
+                lastPreview = 'Photo';
+                previewIcon = '<svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+            } else if (typeof msg === 'object' && msg.type === 'text' && msg.content) {
+                lastPreview = msg.content;
+            }
+        }
+
+        const unreadCount = chat.unreadCount || 0;
+        const unreadBadge = unreadCount > 0 
+            ? `<div class="unread-count">${unreadCount > 99 ? '99+' : unreadCount}</div>` 
+            : '';
+
+        const item = document.createElement('div');
+        item.className = 'chat-item';
+        item.dataset.chatId = chat.id;
+        item.dataset.userId = partner.id || '';
+        item.setAttribute('role', 'button');
+        item.setAttribute('tabindex', '0');
+        item.setAttribute('aria-label', `Chat with ${partner.name || 'Unknown'}. ${unreadCount > 0 ? `${unreadCount} unread messages` : 'No unread messages'}`);
+        item.innerHTML = `
+            <div class="profile-photo">
+                <img src="${partner.avatar || fallbackImage}" alt="${partner.name}" onerror="this.src='${fallbackImage}'">
+                ${isOnline || isBusy || isAway ? 
+                    `<div class="online-dot ${isBusy ? 'busy' : ''} ${isAway ? 'away' : ''}"></div>` : ''}
+            </div>
+            <div class="chat-details">
+                <div class="chat-name">${partner.name || 'Unknown'}</div>
+                <div class="last-message">
+                    ${previewIcon}
+                    ${lastPreview.length > 30 ? lastPreview.substring(0, 30) + '...' : lastPreview}
+                </div>
+            </div>
+            <div class="chat-meta">
+                <div class="timestamp">${formatTimestamp(chat.lastMessageAt)}</div>
+                ${unreadBadge}
+            </div>
+        `;
+        
+        // Add click handler
+        addCustomEventListener(item, 'click', () => {
+            window.location.href = `chat.html?id=${chat.id}`;
+        });
+        
+        // Add keyboard support
+        addCustomEventListener(item, 'keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                window.location.href = `chat.html?id=${chat.id}`;
+            }
+        });
+        
+        // Insert at top with fade-in animation
+        item.style.opacity = '0';
+        item.style.transform = 'translateY(-10px)';
+        
+        if (chatListEl.firstChild) {
+            chatListEl.insertBefore(item, chatListEl.firstChild);
+        } else {
+            chatListEl.appendChild(item);
+        }
+        
+        // Animate in
+        setTimeout(() => {
+            item.style.transition = 'all 0.3s ease';
+            item.style.opacity = '1';
+            item.style.transform = 'translateY(0)';
+        }, 10);
+    }
+
+    startChatRefresh() {
+        // Refresh entire chat list every 2 minutes in polling mode (less frequent)
+        if (!this.chatRefreshInterval) {
+            this.chatRefreshInterval = setInterval(() => {
+                if (!this.useWebSockets) {
+                    console.log('🔄 Silent background chat refresh in polling mode');
+                    this.refreshChatsSilently();
+                }
+            }, 120000); // 2 minutes
+        }
+    }
+
+    stopChatRefresh() {
+        if (this.chatRefreshInterval) {
+            clearInterval(this.chatRefreshInterval);
+            this.chatRefreshInterval = null;
+        }
+    }
+
+    async refreshChatsSilently() {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await fetch(`${API_BASE_URL}/chats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const newChats = await response.json();
+                
+                // Update allChats array
+                allChats = Array.isArray(newChats) ? newChats : [];
+                
+                // Update last update time
+                this.lastChatUpdateTime = Math.floor(Date.now() / 1000);
+                
+                console.log('📱 Silent chat refresh completed');
+            }
+        } catch (error) {
+            console.error('Silent refresh error:', error);
+        }
+    }
+
+    startHeartbeat() {
+        this.heartbeatTimer = setInterval(() => {
+            if (this.socket?.readyState === WebSocket.OPEN) {
+                this.send({ type: 'ping' });
+            }
+        }, this.heartbeatInterval);
+    }
+
+    stopHeartbeat() {
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = null;
+        }
+    }
+
+    send(data) {
+        if (this.socket?.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify(data));
+            return true;
+        } else if (this.useWebSockets) {
+            console.warn('WebSocket not ready, retrying...');
+            setTimeout(() => this.send(data), 1000);
+            return false;
+        } else {
+            console.log('📡 Polling mode active - skipping WebSocket send');
+            return false;
+        }
+    }
+
+    handleMessage(data) {
+        const { type, payload } = data;
+        
+        switch (type) {
+            case 'new_message':
+                this.handleNewMessage(payload);
+                break;
+                
+            case 'message_read':
+                this.handleMessageRead(payload);
+                break;
+                
+            case 'typing_start':
+                this.handleTypingStart(payload);
+                break;
+                
+            case 'typing_end':
+                this.handleTypingEnd(payload);
+                break;
+                
+            case 'user_status_update':
+                this.handleUserStatusUpdate(payload);
+                break;
+                
+            case 'chat_created':
+                this.handleChatCreated(payload);
+                break;
+                
+            case 'pong':
+                console.log('❤️ WebSocket heartbeat received');
+                break;
+                
+            default:
+                console.log('Unknown WebSocket message type:', type);
+        }
+    }
+
+    handleNewMessage(message) {
+        console.log('🆕 New message received:', message);
+        
+        // Play notification sound if message is not from current user
+        if (message.senderId !== currentUserId) {
+            playNotificationSound();
+            showToast(`💬 New message from ${message.sender?.name || 'Someone'}`);
+        }
+        
+        // Update the chat list
+        this.updateChatFromMessage(message);
+    }
+
+    updateChatFromMessage(message) {
+        // Find the chat in our array
+        const chatIndex = allChats.findIndex(c => c.id === message.chatId);
+        
+        if (chatIndex !== -1) {
+            const chat = allChats[chatIndex];
+            
+            // Update chat with new message
+            chat.lastMessage = message;
+            chat.lastMessageAt = message.createdAt || Math.floor(Date.now() / 1000);
+            
+            // Increment unread count if message is not from current user
+            if (message.senderId !== currentUserId) {
+                chat.unreadCount = (chat.unreadCount || 0) + 1;
+            } else {
+                // If message is from current user, clear unread count
+                chat.unreadCount = 0;
+            }
+            
+            // Move to top of array
+            allChats.splice(chatIndex, 1);
+            allChats.unshift(chat);
+            
+            // Update UI
+            this.updateChatInUI(chat);
+        } else {
+            // Chat not found, reload chats
+            console.log('❌ Chat not found, reloading...');
+            loadChats();
+        }
+    }
+
+    handleMessageRead(payload) {
+        console.log('📖 Message read update:', payload);
+        
+        // Find the chat and update unread count
+        const chatIndex = allChats.findIndex(c => c.id === payload.chatId);
+        if (chatIndex !== -1) {
+            const chat = allChats[chatIndex];
+            
+            // Decrement unread count (simple approach)
+            if (chat.unreadCount > 0) {
+                chat.unreadCount = Math.max(0, chat.unreadCount - payload.messageIds.length);
+            }
+            
+            // Update UI
+            this.updateChatInUI(chat);
+        }
+    }
+
+    handleTypingStart(payload) {
+        console.log('✍️ User typing:', payload);
+        showTypingIndicator(payload.chatId, payload.userId);
+        
+        if (typingTimeouts.has(payload.chatId)) {
+            clearTimeout(typingTimeouts.get(payload.chatId));
+        }
+        typingTimeouts.set(payload.chatId, setTimeout(() => {
+            hideTypingIndicator(payload.chatId);
+        }, 3000));
+    }
+
+    handleTypingEnd(payload) {
+        console.log('⏹️ User stopped typing:', payload);
+        hideTypingIndicator(payload.chatId);
+        
+        if (typingTimeouts.has(payload.chatId)) {
+            clearTimeout(typingTimeouts.get(payload.chatId));
+            typingTimeouts.delete(payload.chatId);
+        }
+    }
+
+    handleUserStatusUpdate(payload) {
+        console.log('📊 User status updated:', payload);
+        
+        // Update all chats with this user
+        allChats.forEach(chat => {
+            if (chat.partner?.id === payload.userId) {
+                chat.partner.status = payload.status;
+                this.updateChatInUI(chat);
+            }
+        });
+    }
+
+    handleChatCreated(payload) {
+        console.log('💬 New chat created:', payload);
+        this.addNewChatToUI(payload);
+        allChats.unshift(payload);
+    }
+
+    disconnect() {
+        this.shouldReconnect = false;
+        this.stopPolling();
+        this.stopChatRefresh();
+        this.stopHeartbeat();
+        
+        if (this.socket) {
+            this.socket.close();
+            this.socket = null;
+        }
+        
+        this.isConnected = false;
+        this.useWebSockets = true; // Reset for next connection attempt
+    }
+
+    sendTypingStart(chatId) {
+        this.send({
+            type: 'typing_start',
+            payload: { chatId }
+        });
+    }
+
+    sendTypingEnd(chatId) {
+        this.send({
+            type: 'typing_end', 
+            payload: { chatId }
+        });
+    }
+
+    sendMessageRead(chatId, messageIds) {
+        this.send({
+            type: 'message_read',
+            payload: { chatId, messageIds }
+        });
+    }
+    
+    addMessageListener(listener) {
+        this.messageListeners.push(listener);
+    }
+    
+    removeMessageListener(listener) {
+        const index = this.messageListeners.indexOf(listener);
+        if (index > -1) {
+            this.messageListeners.splice(index, 1);
+        }
+    }
+    
+    getConnectionStats() {
+        return {
+            ...this.connectionStats,
+            pollingSuccessRate: this.connectionStats.totalPolls > 0 
+                ? (this.connectionStats.successfulPolls / this.connectionStats.totalPolls * 100).toFixed(1)
+                : 0,
+            pollingBackoff: this.pollingBackoff,
+            pollingFailures: this.pollingFailures
+        };
+    }
+}
+
+// ==================== UI UPDATE FUNCTIONS ====================
+function showTypingIndicator(chatId, userId) {
+    const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
+    if (chatItem) {
+        const lastMessageEl = chatItem.querySelector('.last-message');
+        if (lastMessageEl) {
+            lastMessageEl.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <span>typing...</span>
+                </div>
+            `;
+        }
+    }
+}
+
+function hideTypingIndicator(chatId) {
+    const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
+    if (chatItem) {
+        // Find the chat in allChats to restore the last message
+        const chat = allChats.find(c => c.id === chatId);
+        if (chat && chat.lastMessage) {
+            const lastMessageEl = chatItem.querySelector('.last-message');
+            if (lastMessageEl) {
+                let preview = chat.lastMessage.content || '';
+                let previewIcon = '';
+                
+                if (chat.lastMessage.type === 'image') {
+                    preview = 'Photo';
+                    previewIcon = '<svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+                }
+                
+                lastMessageEl.innerHTML = `
+                    ${previewIcon}
+                    ${preview.length > 30 ? preview.substring(0, 30) + '...' : preview}
+                `;
+            }
+        }
+    }
+}
+
+// ==================== CHAT RENDERING ====================
+function renderChats(chats, append = false) {
+    console.log('🎨 Rendering chats:', chats.length, 'append:', append);
+    
+    const chatListEl = document.getElementById('chat-list');
+    const emptyStateEl = document.getElementById('empty-state');
+
+    if (!append) {
+        loadedCount = 0;
+        // Clear existing chats
+        const existingChats = chatListEl.querySelectorAll('.chat-item');
+        existingChats.forEach(chat => chat.remove());
+    }
+
+    if (chats.length === 0 && !append) {
+        emptyStateEl.classList.add('show');
+        emptyStateEl.querySelector('.empty-title').textContent = 'No chats yet';
+        emptyStateEl.querySelector('.empty-subtitle').textContent = 'Start a conversation to connect with others';
+        return;
+    }
+
+    if (!append) {
+        emptyStateEl.classList.remove('show');
+    }
+
+    // Sort chats by lastMessageAt (newest first)
+    const chatsToRender = [...chats].sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0));
+    const chatsToShow = chatsToRender.slice(loadedCount, loadedCount + visibleChats);
+
+    chatsToShow.forEach((chat) => {
+        const partner = chat.partner || { name: 'Unknown', avatar: fallbackImage, status: 'offline' };
+        const isOnline = partner.status === 'available';
+        const isBusy = partner.status === 'busy';
+        const isAway = partner.status === 'away';
+
+        let lastPreview = 'No messages yet';
+        let previewIcon = '';
+
+        if (chat.lastMessage) {
+            const msg = chat.lastMessage;
+
+            if (typeof msg === 'object' && msg.type === 'image') {
+                lastPreview = 'Photo';
+                previewIcon = '<svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+            } else if (typeof msg === 'object' && msg.type === 'text' && msg.content) {
+                lastPreview = msg.content;
+            } else if (typeof msg === 'string') {
+                if (msg.trim() === '') {
+                    lastPreview = 'No messages yet';
+                } else if (msg.includes('res.cloudinary.com') || msg.includes('image') || msg.includes('photo')) {
+                    lastPreview = 'Photo';
+                    previewIcon = '<svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+                } else {
+                    lastPreview = msg.trim();
+                }
+            }
+        }
+
+        // Truncate long messages
+        if (lastPreview.length > 30) {
+            lastPreview = lastPreview.substring(0, 30) + '...';
+        }
+
+        const unreadCount = chat.unreadCount || 0;
+        const unreadBadge = unreadCount > 0 
+            ? `<div class="unread-count">${unreadCount > 99 ? '99+' : unreadCount}</div>` 
+            : '';
+
+        const item = document.createElement('div');
+        item.className = 'chat-item';
+        item.dataset.chatId = chat.id;
+        item.dataset.userId = partner.id || '';
+        item.setAttribute('role', 'button');
+        item.setAttribute('tabindex', '0');
+        item.setAttribute('aria-label', `Chat with ${partner.name || 'Unknown'}. ${unreadCount > 0 ? `${unreadCount} unread messages` : 'No unread messages'}. Last message: ${lastPreview}`);
+        item.innerHTML = `
+            <div class="profile-photo">
+                <img src="${partner.avatar || fallbackImage}" alt="${partner.name}" onerror="this.src='${fallbackImage}'">
+                ${isOnline || isBusy || isAway ? 
+                    `<div class="online-dot ${isBusy ? 'busy' : ''} ${isAway ? 'away' : ''}"></div>` : ''}
+            </div>
+            <div class="chat-details">
+                <div class="chat-name">${partner.name || 'Unknown'}</div>
+                <div class="last-message">
+                    ${previewIcon}
+                    ${lastPreview}
+                </div>
+            </div>
+            <div class="chat-meta">
+                <div class="timestamp">${formatTimestamp(chat.lastMessageAt)}</div>
+                ${unreadBadge}
+            </div>
+        `;
+        
+        // Add click handler
+        addCustomEventListener(item, 'click', () => {
+            console.log('Opening chat:', chat.id);
+            window.location.href = `chat.html?id=${chat.id}`;
+        });
+        
+        // Add keyboard support
+        addCustomEventListener(item, 'keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                window.location.href = `chat.html?id=${chat.id}`;
+            }
+        });
+        
+        chatListEl.appendChild(item);
+    });
+    
+    loadedCount += chatsToShow.length;
+    
+    // Add infinite scroll listener if not already added
+    if (!window.chatScrollHandler) {
+        window.chatScrollHandler = () => {
+            if (chatListEl.scrollTop + chatListEl.clientHeight >= chatListEl.scrollHeight - 100) {
+                if (loadedCount < chats.length) {
+                    renderChats(chats, true);
+                }
+            }
+        };
+        addCustomEventListener(chatListEl, 'scroll', window.chatScrollHandler);
+    }
+    
+    console.log(`✅ ${chatsToShow.length} chats rendered (total loaded: ${loadedCount}/${chats.length})`);
+}
+
+// ==================== MAIN LOADING FUNCTION ====================
+async function loadChats() {
+    const chatListEl = document.getElementById('chat-list');
+    const emptyStateEl = document.getElementById('empty-state');
+    const shimmerEl = document.getElementById('shimmer');
+
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+        showToast('Please log in first.');
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+    }
+
+    // Show shimmer, hide empty state
+    shimmerEl.classList.remove('hidden');
+    emptyStateEl.classList.remove('show');
+
+    try {
+        console.log('📡 Loading chats from API...');
+        const res = await fetch(`${API_BASE_URL}/chats`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!res.ok) {
+            if (res.status === 401) {
                 showToast('Session expired. Please log in again.');
                 localStorage.removeItem('token');
                 setTimeout(() => window.location.href = 'login.html', 1500);
                 return;
-            } else {
-                showToast('Failed to load chats');
             }
-            
-            shimmerEl.classList.add('hidden');
-            emptyStateEl.classList.add('show');
-            emptyStateEl.querySelector('.empty-title').textContent = 'Failed to load';
-            emptyStateEl.querySelector('.empty-subtitle').innerHTML = `
-                Check your connection and try again<br>
-                <button class="clear-search-btn" onclick="location.reload()">Retry</button>
-            `;
+            throw new Error(`HTTP error! status: ${res.status}`);
         }
-    }
-
-    // ==================== SEARCH FUNCTION ====================
-    function setupSearch() {
-        const searchInput = document.getElementById('search-input');
         
-        addCustomEventListener(searchInput, 'input', () => {
-            const query = searchInput.value.toLowerCase().trim();
+        const data = await res.json();
+        allChats = Array.isArray(data) ? data : [];
+        console.log(`✅ ${allChats.length} chats loaded`);
 
-            if (query === '') {
-                renderChats(allChats);
-                return;
-            }
-
-            const filtered = allChats.filter(chat => {
-                const partner = chat.partner || {};
-                const name = (partner.name || '').toLowerCase();
-                const lastMessage = chat.lastMessage?.content || '';
-                const lastMessageStr = typeof lastMessage === 'string' ? lastMessage.toLowerCase() : '';
-                const chatId = chat.id || '';
-                
-                return name.includes(query) || 
-                       lastMessageStr.includes(query) ||
-                       chatId.includes(query);
-            });
-
-            renderChats(filtered);
-
-            if (filtered.length === 0) {
-                const emptyStateEl = document.getElementById('empty-state');
-                emptyStateEl.classList.add('show');
-                emptyStateEl.querySelector('.empty-title').textContent = 'No results found';
-                emptyStateEl.querySelector('.empty-subtitle').innerHTML = 
-                    `No chats match "${query}"<br>
-                     <button class="clear-search-btn" onclick="document.getElementById('search-input').value='';loadChats()">
-                         Clear Search
-                     </button>`;
-            }
-        });
-    }
-
-    // ==================== KEYBOARD NAVIGATION ====================
-    function setupKeyboardNavigation() {
-        addCustomEventListener(document, 'keydown', (e) => {
-            const chatItems = document.querySelectorAll('.chat-item');
-            const activeElement = document.activeElement;
-            
-            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                const currentIndex = Array.from(chatItems).indexOf(activeElement);
-                let nextIndex;
-                
-                if (e.key === 'ArrowDown') {
-                    nextIndex = currentIndex < chatItems.length - 1 ? currentIndex + 1 : 0;
-                } else {
-                    nextIndex = currentIndex > 0 ? currentIndex - 1 : chatItems.length - 1;
-                }
-                
-                if (chatItems[nextIndex]) {
-                    chatItems[nextIndex].focus();
-                }
-            } else if ((e.key === 'Enter' || e.key === ' ') && activeElement.classList.contains('chat-item')) {
-                e.preventDefault();
-                activeElement.click();
-            }
-        });
-    }
-
-    // ==================== NAVIGATION SETUP ====================
-    function setupNavigation() {
-        const navItems = {
-            'nav-live': 'live-requests.html',
-            'nav-favorites': 'favorites.html',
-            'nav-chats': () => window.location.reload(),
-            'nav-profile': 'my-profile.html',
-            'fab-post': 'post.html'
-        };
-
-        Object.entries(navItems).forEach(([id, target]) => {
-            const element = document.getElementById(id);
-            if (element) {
-                addCustomEventListener(element, 'click', () => {
-                    if (typeof target === 'function') {
-                        target();
-                    } else {
-                        window.location.href = target;
-                    }
-                });
-            }
-        });
-    }
-
-    // ==================== INITIALIZATION ====================
-    (function() {
-        console.log('🚀 Initializing chats page...');
-        
-        const token = localStorage.getItem('token');
-        if (!token) {
-            showToast('Please log in first.');
-            setTimeout(() => window.location.href = 'login.html', 1500);
-            return;
+        // Update lastChatUpdateTime in WebSocket manager
+        if (wsManager) {
+            wsManager.lastChatUpdateTime = Math.floor(Date.now() / 1000);
         }
 
-        currentUserId = parseJwt(token);
-        if (!currentUserId) {
-            showToast('Invalid session. Please log in again.');
+        // Hide shimmer
+        shimmerEl.classList.add('hidden');
+        renderChats(allChats);
+    } catch (err) {
+        console.error('❌ Chats load error:', err);
+        
+        if (err.message.includes('Failed to fetch')) {
+            showToast('Network error. Check your internet connection.');
+        } else if (err.message.includes('401')) {
+            showToast('Session expired. Please log in again.');
             localStorage.removeItem('token');
             setTimeout(() => window.location.href = 'login.html', 1500);
             return;
+        } else {
+            showToast('Failed to load chats');
         }
-
-        console.log('👤 Current user ID:', currentUserId);
-
-        // Setup components
-        setupSearch();
-        setupKeyboardNavigation();
-        setupNavigation();
-
-        // Initialize WebSocket manager
-        wsManager = new ChatWebSocketManager();
-
-        // Load chats
-        loadChats();
         
-        // Start WebSocket connection with fallback
-        setTimeout(() => {
-            console.log('🔌 Starting WebSocket connection...');
-            wsManager.connect();
-            
-            // Add direct message listener
-            wsManager.addMessageListener((data) => {
-                console.log('📨 WebSocket listener received:', data.type);
-                if (data.type === 'new_message') {
-                    console.log('💬 Direct listener handling new message:', data.payload.chatId);
-                    updateChatInList(data.payload);
-                }
-            });
-            
-            // Start polling as fallback (will be ignored if WebSocket works)
-            wsManager.startPolling();
-        }, 1000);
+        shimmerEl.classList.add('hidden');
+        emptyStateEl.classList.add('show');
+        emptyStateEl.querySelector('.empty-title').textContent = 'Failed to load';
+        emptyStateEl.querySelector('.empty-subtitle').innerHTML = `
+            Check your connection and try again<br>
+            <button class="clear-search-btn" onclick="location.reload()">Retry</button>
+        `;
+    }
+}
 
-        // Auto-refresh every 60 seconds as backup (reduced frequency)
-        setInterval(() => {
-            if (!wsManager.isConnected && wsManager.useWebSockets) {
-                console.log('🔄 Auto-refreshing chats (WebSocket disconnected)');
-                loadChats();
-            }
-        }, 60000);
+// ==================== SEARCH FUNCTION ====================
+function setupSearch() {
+    const searchInput = document.getElementById('search-input');
+    
+    addCustomEventListener(searchInput, 'input', () => {
+        const query = searchInput.value.toLowerCase().trim();
 
-        // Add manual refresh button handler (if exists)
-        const refreshBtn = document.querySelector('.refresh-btn');
-        if (refreshBtn) {
-            addCustomEventListener(refreshBtn, 'click', () => {
-                console.log('Manual refresh triggered');
-                loadChats();
-            });
+        if (query === '') {
+            renderChats(allChats);
+            return;
         }
 
-        // Clean up on page unload
-        addCustomEventListener(window, 'beforeunload', () => {
-            cleanupEventListeners();
-            if (wsManager) {
-                wsManager.disconnect();
-            }
+        const filtered = allChats.filter(chat => {
+            const partner = chat.partner || {};
+            const name = (partner.name || '').toLowerCase();
+            const lastMessage = chat.lastMessage?.content || '';
+            const lastMessageStr = typeof lastMessage === 'string' ? lastMessage.toLowerCase() : '';
+            const chatId = chat.id || '';
+            
+            return name.includes(query) || 
+                   lastMessageStr.includes(query) ||
+                   chatId.includes(query);
         });
 
-        // Force WebSocket to handle new messages by adding a global function
-        window.handleNewMessage = function(message) {
-            console.log('🌐 Global handler called for message:', message.chatId);
-            updateChatInList(message);
-        };
+        renderChats(filtered);
 
-        console.log('✅ Chats page initialization complete');
-    })();
+        if (filtered.length === 0) {
+            const emptyStateEl = document.getElementById('empty-state');
+            emptyStateEl.classList.add('show');
+            emptyStateEl.querySelector('.empty-title').textContent = 'No results found';
+            emptyStateEl.querySelector('.empty-subtitle').innerHTML = 
+                `No chats match "${query}"<br>
+                 <button class="clear-search-btn" onclick="document.getElementById('search-input').value='';loadChats()">
+                     Clear Search
+                 </button>`;
+        }
+    });
+}
+
+// ==================== KEYBOARD NAVIGATION ====================
+function setupKeyboardNavigation() {
+    addCustomEventListener(document, 'keydown', (e) => {
+        const chatItems = document.querySelectorAll('.chat-item');
+        const activeElement = document.activeElement;
+        
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const currentIndex = Array.from(chatItems).indexOf(activeElement);
+            let nextIndex;
+            
+            if (e.key === 'ArrowDown') {
+                nextIndex = currentIndex < chatItems.length - 1 ? currentIndex + 1 : 0;
+            } else {
+                nextIndex = currentIndex > 0 ? currentIndex - 1 : chatItems.length - 1;
+            }
+            
+            if (chatItems[nextIndex]) {
+                chatItems[nextIndex].focus();
+            }
+        } else if ((e.key === 'Enter' || e.key === ' ') && activeElement.classList.contains('chat-item')) {
+            e.preventDefault();
+            activeElement.click();
+        }
+    });
+}
+
+// ==================== NAVIGATION SETUP ====================
+function setupNavigation() {
+    const navItems = {
+        'nav-live': 'live-requests.html',
+        'nav-favorites': 'favorites.html',
+        'nav-chats': () => window.location.reload(),
+        'nav-profile': 'my-profile.html',
+        'fab-post': 'post.html'
+    };
+
+    Object.entries(navItems).forEach(([id, target]) => {
+        const element = document.getElementById(id);
+        if (element) {
+            addCustomEventListener(element, 'click', () => {
+                if (typeof target === 'function') {
+                    target();
+                } else {
+                    window.location.href = target;
+                }
+            });
+        }
+    });
+}
+
+// ==================== INITIALIZATION ====================
+(function() {
+    console.log('🚀 Initializing chats page...');
+    
+    const token = localStorage.getItem('token');
+    if (!token) {
+        showToast('Please log in first.');
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+    }
+
+    currentUserId = parseJwt(token);
+    if (!currentUserId) {
+        showToast('Invalid session. Please log in again.');
+        localStorage.removeItem('token');
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+    }
+
+    console.log('👤 Current user ID:', currentUserId);
+
+    // Setup components
+    setupSearch();
+    setupKeyboardNavigation();
+    setupNavigation();
+
+    // Initialize WebSocket manager
+    wsManager = new ChatWebSocketManager();
+
+    // Load chats
+    loadChats();
+    
+    // Start WebSocket connection
+    setTimeout(() => {
+        console.log('🔌 Starting WebSocket connection...');
+        wsManager.connect();
+        
+        // Add message listener
+        wsManager.addMessageListener((data) => {
+            console.log('📨 WebSocket listener received:', data.type);
+        });
+    }, 1000);
+
+    // Auto-refresh every 60 seconds as backup
+    setInterval(() => {
+        if (!wsManager.isConnected && wsManager.useWebSockets) {
+            console.log('🔄 Auto-refreshing chats (WebSocket disconnected)');
+            loadChats();
+        }
+    }, 60000);
+
+    // Add manual refresh button handler
+    const refreshBtn = document.querySelector('.refresh-btn');
+    if (refreshBtn) {
+        addCustomEventListener(refreshBtn, 'click', () => {
+            console.log('Manual refresh triggered');
+            loadChats();
+        });
+    }
+
+    // Clean up on page unload
+    addCustomEventListener(window, 'beforeunload', () => {
+        cleanupEventListeners();
+        if (wsManager) {
+            wsManager.disconnect();
+        }
+    });
+
+    console.log('✅ Chats page initialization complete');
+})();
 </script>
 </body>
 
 </html>
+
