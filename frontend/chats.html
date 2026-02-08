@@ -433,7 +433,7 @@
   <div id="toast"></div>
 
 <script>
-   const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
+  const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
 const API_BASE_URL = 'https://www.instaping.org/api';
 let currentUserId = null;
 let wsManager = null;
@@ -513,192 +513,34 @@ function cleanupEventListeners() {
     customEventListeners = [];
 }
 
-// ==================== WEBSOCKET MANAGER WITH IMPROVED POLLING FALLBACK ====================
-class ChatWebSocketManager {
+// ==================== SIMPLE POLLING MANAGER ====================
+class ChatPollingManager {
     constructor() {
-        this.socket = null;
-        this.reconnectInterval = 3000;
-        this.maxReconnectAttempts = 5;
-        this.reconnectAttempts = 0;
         this.isConnected = false;
-        this.shouldReconnect = true;
-        this.messageListeners = [];
-        this.heartbeatInterval = 30000;
-        this.heartbeatTimer = null;
-        this.useWebSockets = true;
         this.pollingInterval = null;
-        this.chatRefreshInterval = null;
-        
-        // Improved polling properties
+        this.pollingIntervalMs = 5000; // Poll every 5 seconds
         this.lastChatUpdateTime = 0;
         this.optimisticUpdates = new Map();
-        this.pollingBackoff = 5000;
-        this.maxPollingBackoff = 60000;
-        this.pollingFailures = 0;
-        this.maxPollingFailures = 3;
-        this.connectionStats = {
-            mode: 'websocket',
-            uptime: 0,
-            modeSwitches: 0,
-            totalPolls: 0,
-            successfulPolls: 0,
-            failedPolls: 0
-        };
+        this.messageListeners = [];
     }
 
     connect() {
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            return;
-        }
-
-        const token = localStorage.getItem('token');
-        if (!token) {
-            console.warn('No token found, WebSocket connection deferred');
-            return;
-        }
-
-        // Auto-detect if we should use WebSocket or polling
-        const isLocalhost = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1';
-        
-        // For production (Render), try WebSocket first but fall back to polling
-        let wsUrl;
-        
-        if (isLocalhost) {
-            wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
-            console.log('🔌 Connecting to Local WebSocket:', wsUrl);
-        } else {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const host = window.location.host.replace(/^www\./, '');
-            wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
-            console.log('🌐 Connecting to Production WebSocket:', wsUrl);
-        }
-        
-        try {
-            this.socket = new WebSocket(wsUrl);
-            
-            this.socket.onopen = () => {
-                console.log('✅ WebSocket connected');
-                this.isConnected = true;
-                this.reconnectAttempts = 0;
-                this.useWebSockets = true;
-                this.connectionStats.mode = 'websocket';
-                
-                // Start heartbeat
-                this.startHeartbeat();
-                
-                // Subscribe to chat updates
-                this.send({
-                    type: 'subscribe',
-                    channel: 'chat_updates'
-                });
-                
-                this.send({
-                    type: 'subscribe',
-                    channel: 'message_updates'
-                });
-                
-                showToast('💬 Live chat updates active');
-                
-                // Clear any polling intervals since WebSocket is working
-                this.stopPolling();
-                this.stopChatRefresh();
-                
-                // Reset polling stats
-                this.pollingFailures = 0;
-                this.pollingBackoff = 5000;
-            };
-
-            this.socket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('📨 WebSocket message:', data);
-                    this.handleMessage(data);
-                    
-                    // Notify all listeners
-                    this.messageListeners.forEach(listener => listener(data));
-                } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
-                }
-            };
-
-            this.socket.onclose = (event) => {
-                console.log('❌ WebSocket disconnected');
-                this.isConnected = false;
-                
-                if (this.heartbeatTimer) {
-                    clearInterval(this.heartbeatTimer);
-                    this.heartbeatTimer = null;
-                }
-                
-                if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-                    this.reconnectAttempts++;
-                    console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
-                    
-                    // Show toast only on first disconnect
-                    if (this.reconnectAttempts === 1) {
-                        showToast('🔌 Reconnecting...');
-                    }
-                    
-                    setTimeout(() => this.connect(), this.reconnectInterval);
-                } else if (this.shouldReconnect) {
-                    console.error('Max reconnection attempts reached, switching to polling mode');
-                    this.switchToPollingMode();
-                }
-            };
-
-            this.socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-
-        } catch (error) {
-            console.error('Failed to create WebSocket:', error);
-            
-            if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-                this.reconnectAttempts++;
-                setTimeout(() => this.connect(), this.reconnectInterval);
-            } else if (this.shouldReconnect) {
-                this.switchToPollingMode();
-            }
-        }
-    }
-
-    switchToPollingMode() {
-        console.log('🔄 Switching to HTTP polling mode');
-        this.useWebSockets = false;
-        this.isConnected = false;
-        this.connectionStats.mode = 'polling';
-        this.connectionStats.modeSwitches++;
-        
-        // Silent switch - don't show toast unless it's been a while
-        if (this.reconnectAttempts >= 3) {
-            showToast('📡 Using polling mode (slower updates)');
-        }
-        
-        // Start polling for updates
+        console.log('📡 Starting polling mode (HTTP fallback)');
+        this.isConnected = true;
         this.startPolling();
         
-        // Start periodic refresh of chats (but more subtly)
+        // Start silent chat refresh every 2 minutes
         this.startChatRefresh();
         
-        // Log analytics if available
-        if (typeof gtag !== 'undefined') {
-            gtag('event', 'connection_mode_switch', {
-                'event_category': 'network',
-                'event_label': 'websocket_to_polling'
-            });
-        }
+        return true;
     }
 
     startPolling() {
-        // Poll for new messages with current backoff interval
         if (!this.pollingInterval) {
-            console.log(`📡 Starting polling with ${this.pollingBackoff}ms interval`);
+            console.log(`📡 Starting polling with ${this.pollingIntervalMs}ms interval`);
             this.pollingInterval = setInterval(async () => {
-                if (!this.useWebSockets) {
-                    await this.pollForNewMessages();
-                }
-            }, this.pollingBackoff);
+                await this.pollForNewMessages();
+            }, this.pollingIntervalMs);
         }
     }
 
@@ -710,9 +552,6 @@ class ChatWebSocketManager {
     }
 
     async pollForNewMessages() {
-        this.connectionStats.totalPolls++;
-        const startTime = Date.now();
-        
         try {
             const token = localStorage.getItem('token');
             if (!token) return;
@@ -723,7 +562,6 @@ class ChatWebSocketManager {
             });
 
             if (response.ok) {
-                this.connectionStats.successfulPolls++;
                 const updatedChats = await response.json();
                 
                 if (updatedChats.length > 0) {
@@ -736,46 +574,11 @@ class ChatWebSocketManager {
                     updatedChats.forEach(chat => {
                         this.processUpdatedChat(chat);
                     });
-                    
-                    // Reset failures on successful poll
-                    this.pollingFailures = 0;
-                    this.pollingBackoff = 5000; // Reset to initial interval
-                    
-                    // Restart polling with normal interval
-                    this.stopPolling();
-                    this.startPolling();
                 }
-                
-                // Record ping time
-                const pingTime = Date.now() - startTime;
-                console.log(`📡 Poll completed in ${pingTime}ms`);
-                
-            } else {
-                throw new Error(`HTTP ${response.status}`);
             }
             
         } catch (error) {
-            console.error('Polling error:', error);
-            this.connectionStats.failedPolls++;
-            this.pollingFailures++;
-            
-            // Exponential backoff
-            if (this.pollingFailures <= this.maxPollingFailures) {
-                this.pollingBackoff = Math.min(
-                    this.pollingBackoff * 2,
-                    this.maxPollingBackoff
-                );
-                
-                console.log(`⚠️ Polling backoff to ${this.pollingBackoff}ms (failure ${this.pollingFailures}/${this.maxPollingFailures})`);
-                
-                // Restart polling with new interval
-                this.stopPolling();
-                this.startPolling();
-            } else {
-                console.error('Max polling failures reached, stopping polling');
-                this.stopPolling();
-                showToast('⚠️ Connection issues - refresh page to retry');
-            }
+            console.log('📡 Polling error (will retry):', error.message);
         }
     }
 
@@ -1011,22 +814,10 @@ class ChatWebSocketManager {
     }
 
     startChatRefresh() {
-        // Refresh entire chat list every 2 minutes in polling mode (less frequent)
-        if (!this.chatRefreshInterval) {
-            this.chatRefreshInterval = setInterval(() => {
-                if (!this.useWebSockets) {
-                    console.log('🔄 Silent background chat refresh in polling mode');
-                    this.refreshChatsSilently();
-                }
-            }, 120000); // 2 minutes
-        }
-    }
-
-    stopChatRefresh() {
-        if (this.chatRefreshInterval) {
-            clearInterval(this.chatRefreshInterval);
-            this.chatRefreshInterval = null;
-        }
+        // Refresh entire chat list every 2 minutes in polling mode
+        setInterval(() => {
+            this.refreshChatsSilently();
+        }, 120000); // 2 minutes
     }
 
     async refreshChatsSilently() {
@@ -1050,278 +841,17 @@ class ChatWebSocketManager {
                 console.log('📱 Silent chat refresh completed');
             }
         } catch (error) {
-            console.error('Silent refresh error:', error);
+            console.log('📡 Silent refresh error:', error.message);
         }
-    }
-
-    startHeartbeat() {
-        this.heartbeatTimer = setInterval(() => {
-            if (this.socket?.readyState === WebSocket.OPEN) {
-                this.send({ type: 'ping' });
-            }
-        }, this.heartbeatInterval);
-    }
-
-    stopHeartbeat() {
-        if (this.heartbeatTimer) {
-            clearInterval(this.heartbeatTimer);
-            this.heartbeatTimer = null;
-        }
-    }
-
-    send(data) {
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            this.socket.send(JSON.stringify(data));
-            return true;
-        } else if (this.useWebSockets) {
-            console.warn('WebSocket not ready, retrying...');
-            setTimeout(() => this.send(data), 1000);
-            return false;
-        } else {
-            console.log('📡 Polling mode active - skipping WebSocket send');
-            return false;
-        }
-    }
-
-    handleMessage(data) {
-        const { type, payload } = data;
-        
-        switch (type) {
-            case 'new_message':
-                this.handleNewMessage(payload);
-                break;
-                
-            case 'message_read':
-                this.handleMessageRead(payload);
-                break;
-                
-            case 'typing_start':
-                this.handleTypingStart(payload);
-                break;
-                
-            case 'typing_end':
-                this.handleTypingEnd(payload);
-                break;
-                
-            case 'user_status_update':
-                this.handleUserStatusUpdate(payload);
-                break;
-                
-            case 'chat_created':
-                this.handleChatCreated(payload);
-                break;
-                
-            case 'pong':
-                console.log('❤️ WebSocket heartbeat received');
-                break;
-                
-            default:
-                console.log('Unknown WebSocket message type:', type);
-        }
-    }
-
-    handleNewMessage(message) {
-        console.log('🆕 New message received:', message);
-        
-        // Play notification sound if message is not from current user
-        if (message.senderId !== currentUserId) {
-            playNotificationSound();
-            showToast(`💬 New message from ${message.sender?.name || 'Someone'}`);
-        }
-        
-        // Update the chat list
-        this.updateChatFromMessage(message);
-    }
-
-    updateChatFromMessage(message) {
-        // Find the chat in our array
-        const chatIndex = allChats.findIndex(c => c.id === message.chatId);
-        
-        if (chatIndex !== -1) {
-            const chat = allChats[chatIndex];
-            
-            // Update chat with new message
-            chat.lastMessage = message;
-            chat.lastMessageAt = message.createdAt || Math.floor(Date.now() / 1000);
-            
-            // Increment unread count if message is not from current user
-            if (message.senderId !== currentUserId) {
-                chat.unreadCount = (chat.unreadCount || 0) + 1;
-            } else {
-                // If message is from current user, clear unread count
-                chat.unreadCount = 0;
-            }
-            
-            // Move to top of array
-            allChats.splice(chatIndex, 1);
-            allChats.unshift(chat);
-            
-            // Update UI
-            this.updateChatInUI(chat);
-        } else {
-            // Chat not found, reload chats
-            console.log('❌ Chat not found, reloading...');
-            loadChats();
-        }
-    }
-
-    handleMessageRead(payload) {
-        console.log('📖 Message read update:', payload);
-        
-        // Find the chat and update unread count
-        const chatIndex = allChats.findIndex(c => c.id === payload.chatId);
-        if (chatIndex !== -1) {
-            const chat = allChats[chatIndex];
-            
-            // Decrement unread count (simple approach)
-            if (chat.unreadCount > 0) {
-                chat.unreadCount = Math.max(0, chat.unreadCount - payload.messageIds.length);
-            }
-            
-            // Update UI
-            this.updateChatInUI(chat);
-        }
-    }
-
-    handleTypingStart(payload) {
-        console.log('✍️ User typing:', payload);
-        showTypingIndicator(payload.chatId, payload.userId);
-        
-        if (typingTimeouts.has(payload.chatId)) {
-            clearTimeout(typingTimeouts.get(payload.chatId));
-        }
-        typingTimeouts.set(payload.chatId, setTimeout(() => {
-            hideTypingIndicator(payload.chatId);
-        }, 3000));
-    }
-
-    handleTypingEnd(payload) {
-        console.log('⏹️ User stopped typing:', payload);
-        hideTypingIndicator(payload.chatId);
-        
-        if (typingTimeouts.has(payload.chatId)) {
-            clearTimeout(typingTimeouts.get(payload.chatId));
-            typingTimeouts.delete(payload.chatId);
-        }
-    }
-
-    handleUserStatusUpdate(payload) {
-        console.log('📊 User status updated:', payload);
-        
-        // Update all chats with this user
-        allChats.forEach(chat => {
-            if (chat.partner?.id === payload.userId) {
-                chat.partner.status = payload.status;
-                this.updateChatInUI(chat);
-            }
-        });
-    }
-
-    handleChatCreated(payload) {
-        console.log('💬 New chat created:', payload);
-        this.addNewChatToUI(payload);
-        allChats.unshift(payload);
     }
 
     disconnect() {
-        this.shouldReconnect = false;
         this.stopPolling();
-        this.stopChatRefresh();
-        this.stopHeartbeat();
-        
-        if (this.socket) {
-            this.socket.close();
-            this.socket = null;
-        }
-        
         this.isConnected = false;
-        this.useWebSockets = true; // Reset for next connection attempt
-    }
-
-    sendTypingStart(chatId) {
-        this.send({
-            type: 'typing_start',
-            payload: { chatId }
-        });
-    }
-
-    sendTypingEnd(chatId) {
-        this.send({
-            type: 'typing_end', 
-            payload: { chatId }
-        });
-    }
-
-    sendMessageRead(chatId, messageIds) {
-        this.send({
-            type: 'message_read',
-            payload: { chatId, messageIds }
-        });
     }
     
     addMessageListener(listener) {
         this.messageListeners.push(listener);
-    }
-    
-    removeMessageListener(listener) {
-        const index = this.messageListeners.indexOf(listener);
-        if (index > -1) {
-            this.messageListeners.splice(index, 1);
-        }
-    }
-    
-    getConnectionStats() {
-        return {
-            ...this.connectionStats,
-            pollingSuccessRate: this.connectionStats.totalPolls > 0 
-                ? (this.connectionStats.successfulPolls / this.connectionStats.totalPolls * 100).toFixed(1)
-                : 0,
-            pollingBackoff: this.pollingBackoff,
-            pollingFailures: this.pollingFailures
-        };
-    }
-}
-
-// ==================== UI UPDATE FUNCTIONS ====================
-function showTypingIndicator(chatId, userId) {
-    const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
-    if (chatItem) {
-        const lastMessageEl = chatItem.querySelector('.last-message');
-        if (lastMessageEl) {
-            lastMessageEl.innerHTML = `
-                <div class="typing-indicator">
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <span>typing...</span>
-                </div>
-            `;
-        }
-    }
-}
-
-function hideTypingIndicator(chatId) {
-    const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
-    if (chatItem) {
-        // Find the chat in allChats to restore the last message
-        const chat = allChats.find(c => c.id === chatId);
-        if (chat && chat.lastMessage) {
-            const lastMessageEl = chatItem.querySelector('.last-message');
-            if (lastMessageEl) {
-                let preview = chat.lastMessage.content || '';
-                let previewIcon = '';
-                
-                if (chat.lastMessage.type === 'image') {
-                    preview = 'Photo';
-                    previewIcon = '<svg class="last-message-icon" viewBox="0 0 24 24" style="display:inline-block;width:16px;height:16px;margin-right:4px;vertical-align:middle"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
-                }
-                
-                lastMessageEl.innerHTML = `
-                    ${previewIcon}
-                    ${preview.length > 30 ? preview.substring(0, 30) + '...' : preview}
-                `;
-            }
-        }
     }
 }
 
@@ -1492,7 +1022,7 @@ async function loadChats() {
         allChats = Array.isArray(data) ? data : [];
         console.log(`✅ ${allChats.length} chats loaded`);
 
-        // Update lastChatUpdateTime in WebSocket manager
+        // Update lastChatUpdateTime in polling manager
         if (wsManager) {
             wsManager.lastChatUpdateTime = Math.floor(Date.now() / 1000);
         }
@@ -1640,30 +1170,17 @@ function setupNavigation() {
     setupKeyboardNavigation();
     setupNavigation();
 
-    // Initialize WebSocket manager
-    wsManager = new ChatWebSocketManager();
-
+    // Initialize Polling manager (HTTP fallback only - no WebSocket attempts)
+    wsManager = new ChatPollingManager();
+    
     // Load chats
     loadChats();
     
-    // Start WebSocket connection
+    // Start polling immediately
     setTimeout(() => {
-        console.log('🔌 Starting WebSocket connection...');
+        console.log('📡 Starting HTTP polling for real-time updates');
         wsManager.connect();
-        
-        // Add message listener
-        wsManager.addMessageListener((data) => {
-            console.log('📨 WebSocket listener received:', data.type);
-        });
-    }, 1000);
-
-    // Auto-refresh every 60 seconds as backup
-    setInterval(() => {
-        if (!wsManager.isConnected && wsManager.useWebSockets) {
-            console.log('🔄 Auto-refreshing chats (WebSocket disconnected)');
-            loadChats();
-        }
-    }, 60000);
+    }, 2000);
 
     // Add manual refresh button handler
     const refreshBtn = document.querySelector('.refresh-btn');
@@ -1688,4 +1205,5 @@ function setupNavigation() {
 </body>
 
 </html>
+
 
