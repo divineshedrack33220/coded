@@ -1858,28 +1858,13 @@
                 const shouldShowIndicator = !isUserAtBottom();
                 addMessageWithAnimation(message, false, shouldShowIndicator);
                 
-                // Mark as read
-                this.markMessageRead([message.id]);
+                // REMOVED: markMessageRead call since endpoint doesn't exist
+                // this.markMessageRead([message.id]);
             }
         }
 
-        async markMessageRead(messageIds) {
-            try {
-                await fetch(`${API_BASE_URL}/messages/read`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ 
-                        chatId: this.chatId, 
-                        messageIds 
-                    })
-                });
-            } catch (error) {
-                console.error('Failed to mark messages as read:', error);
-            }
-        }
+        // REMOVED: markMessageRead method since endpoint doesn't exist
+        // async markMessageRead(messageIds) { ... }
 
         async sendTypingStart() {
             try {
@@ -2084,7 +2069,8 @@
             } else {
                 const shouldShowIndicator = !isUserAtBottom();
                 addMessageWithAnimation(message, false, shouldShowIndicator);
-                this.sendMessageRead([message.id]);
+                // REMOVED: sendMessageRead call since endpoint doesn't exist
+                // this.sendMessageRead([message.id]);
             }
         }
 
@@ -2849,28 +2835,28 @@
 
             scrollToBottom();
             
-            // Mark all messages as read
-            const unreadMessages = messages
-                .filter(msg => msg.senderId !== currentUserId && !msg.isRead)
-                .map(msg => msg.id);
+            // REMOVED: Mark all messages as read call since endpoint doesn't exist
+            // const unreadMessages = messages
+            //     .filter(msg => msg.senderId !== currentUserId && !msg.isRead)
+            //     .map(msg => msg.id);
             
-            if (unreadMessages.length > 0) {
-                try {
-                    await fetch(`${API_BASE_URL}/messages/read`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ 
-                            chatId, 
-                            messageIds: unreadMessages 
-                        })
-                    });
-                } catch (err) {
-                    console.error('Failed to mark messages as read:', err);
-                }
-            }
+            // if (unreadMessages.length > 0) {
+            //     try {
+            //         await fetch(`${API_BASE_URL}/messages/read`, {
+            //             method: 'POST',
+            //             headers: {
+            //                 'Authorization': `Bearer ${token}`,
+            //                 'Content-Type': 'application/json'
+            //             },
+            //             body: JSON.stringify({ 
+            //                 chatId, 
+            //                 messageIds: unreadMessages 
+            //             })
+            //         });
+            //     } catch (err) {
+            //         console.error('Failed to mark messages as read:', err);
+            //     }
+            // }
         } catch (error) {
             console.error('Load messages error:', error);
             skeletonLoader.style.display = 'none';
@@ -2939,6 +2925,7 @@
 </script>
 </body>
 </html>
+
 
 
 
