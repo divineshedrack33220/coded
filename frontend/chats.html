@@ -514,7 +514,7 @@
         customEventListeners = [];
     }
 
-    // ==================== WEBSOCKET MANAGER ====================
+    // ==================== WEBSOCKET MANAGER WITH POLLING FALLBACK ====================
     class ChatWebSocketManager {
         constructor() {
             this.socket = null;
@@ -526,6 +526,9 @@
             this.messageListeners = [];
             this.heartbeatInterval = 30000;
             this.heartbeatTimer = null;
+            this.useWebSockets = true; // Set to false to force HTTP polling
+            this.pollingInterval = null;
+            this.chatRefreshInterval = null;
         }
 
         connect() {
@@ -539,16 +542,33 @@
                 return;
             }
 
-            const wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
-            console.log('Connecting to Chat WebSocket:', wsUrl);
+            // Auto-detect if we should use WebSocket or polling
+            const isLocalhost = window.location.hostname === 'localhost' || 
+                               window.location.hostname === '127.0.0.1';
+            
+            // For production (Render), try WebSocket first but fall back to polling
+            let wsUrl;
+            
+            if (isLocalhost) {
+                // Local development - use WebSocket
+                wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
+                console.log('🔌 Connecting to Local WebSocket:', wsUrl);
+            } else {
+                // Production - try WebSocket with auto-detected protocol
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.host.replace(/^www\./, '');
+                wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
+                console.log('🌐 Connecting to Production WebSocket:', wsUrl);
+            }
             
             try {
                 this.socket = new WebSocket(wsUrl);
                 
                 this.socket.onopen = () => {
-                    console.log('Chat WebSocket connected');
+                    console.log('✅ WebSocket connected');
                     this.isConnected = true;
                     this.reconnectAttempts = 0;
+                    this.useWebSockets = true;
                     
                     // Start heartbeat
                     this.startHeartbeat();
@@ -565,12 +585,22 @@
                     });
                     
                     showToast('💬 Live chat updates active');
+                    
+                    // Clear any polling intervals since WebSocket is working
+                    if (this.pollingInterval) {
+                        clearInterval(this.pollingInterval);
+                        this.pollingInterval = null;
+                    }
+                    if (this.chatRefreshInterval) {
+                        clearInterval(this.chatRefreshInterval);
+                        this.chatRefreshInterval = null;
+                    }
                 };
 
                 this.socket.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data);
-                        console.log('📨 Chat WebSocket message:', data);
+                        console.log('📨 WebSocket message:', data);
                         this.handleMessage(data);
                         
                         // Notify all listeners
@@ -581,9 +611,13 @@
                 };
 
                 this.socket.onclose = (event) => {
-                    console.log('Chat WebSocket disconnected');
+                    console.log('❌ WebSocket disconnected');
                     this.isConnected = false;
-                    showToast('🔌 Chat updates disconnected');
+                    
+                    // Show toast only if we were connected
+                    if (this.shouldReconnect) {
+                        showToast('🔌 Reconnecting...');
+                    }
                     
                     if (this.heartbeatTimer) {
                         clearInterval(this.heartbeatTimer);
@@ -591,17 +625,104 @@
                     }
                     
                     if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-                        setTimeout(() => this.reconnect(), this.reconnectInterval);
+                        this.reconnectAttempts++;
+                        console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+                        setTimeout(() => this.connect(), this.reconnectInterval);
+                    } else if (this.shouldReconnect) {
+                        console.error('Max reconnection attempts reached, switching to polling mode');
+                        showToast('📡 Using polling mode (slower updates)');
+                        this.switchToPollingMode();
                     }
                 };
 
                 this.socket.onerror = (error) => {
-                    console.error('Chat WebSocket error:', error);
+                    console.error('WebSocket error:', error);
                 };
 
             } catch (error) {
                 console.error('Failed to create WebSocket:', error);
-                setTimeout(() => this.reconnect(), this.reconnectInterval);
+                
+                if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    setTimeout(() => this.connect(), this.reconnectInterval);
+                } else if (this.shouldReconnect) {
+                    this.switchToPollingMode();
+                }
+            }
+        }
+
+        switchToPollingMode() {
+            console.log('🔄 Switching to HTTP polling mode');
+            this.useWebSockets = false;
+            this.isConnected = false;
+            
+            // Start polling for updates
+            this.startPolling();
+            
+            // Start periodic refresh of chats
+            this.startChatRefresh();
+        }
+
+        startPolling() {
+            // Poll for new messages every 3 seconds
+            if (!this.pollingInterval) {
+                this.pollingInterval = setInterval(async () => {
+                    if (!this.useWebSockets) {
+                        await this.pollForNewMessages();
+                    }
+                }, 3000);
+            }
+        }
+
+        async pollForNewMessages() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return;
+
+                // Get the latest chat to check for updates
+                const response = await fetch(`${API_BASE_URL}/chats?limit=1&sort=updated`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const chats = await response.json();
+                    if (chats.length > 0) {
+                        const latestChat = chats[0];
+                        
+                        // Check if this chat is already in our list
+                        const existingChat = allChats.find(c => c.id === latestChat.id);
+                        
+                        if (!existingChat || 
+                            (latestChat.lastMessageAt && existingChat.lastMessageAt && 
+                             latestChat.lastMessageAt > existingChat.lastMessageAt)) {
+                            
+                            console.log('🔄 Polling detected chat update:', latestChat.id);
+                            
+                            // Trigger a reload of chats
+                            loadChats();
+                            
+                            // Play notification sound if there's a new message
+                            if (latestChat.lastMessage && 
+                                latestChat.lastMessage.senderId !== currentUserId) {
+                                playNotificationSound();
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+            }
+        }
+
+        startChatRefresh() {
+            // Refresh entire chat list every 30 seconds in polling mode
+            if (!this.chatRefreshInterval) {
+                this.chatRefreshInterval = setInterval(() => {
+                    if (!this.useWebSockets) {
+                        console.log('🔄 Periodic chat refresh in polling mode');
+                        loadChats();
+                    }
+                }, 30000);
             }
         }
 
@@ -613,24 +734,16 @@
             }, this.heartbeatInterval);
         }
 
-        reconnect() {
-            if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-                console.error('Max reconnection attempts reached');
-                return;
-            }
-            
-            this.reconnectAttempts++;
-            console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
-            this.connect();
-        }
-
         send(data) {
             if (this.socket?.readyState === WebSocket.OPEN) {
                 this.socket.send(JSON.stringify(data));
                 return true;
-            } else {
+            } else if (this.useWebSockets) {
                 console.warn('WebSocket not ready, retrying...');
                 setTimeout(() => this.send(data), 1000);
+                return false;
+            } else {
+                console.log('📡 Polling mode active - skipping WebSocket send');
                 return false;
             }
         }
@@ -731,15 +844,30 @@
 
         disconnect() {
             this.shouldReconnect = false;
+            
+            // Clear polling intervals
+            if (this.pollingInterval) {
+                clearInterval(this.pollingInterval);
+                this.pollingInterval = null;
+            }
+            
+            if (this.chatRefreshInterval) {
+                clearInterval(this.chatRefreshInterval);
+                this.chatRefreshInterval = null;
+            }
+            
             if (this.heartbeatTimer) {
                 clearInterval(this.heartbeatTimer);
                 this.heartbeatTimer = null;
             }
+            
             if (this.socket) {
                 this.socket.close();
                 this.socket = null;
             }
+            
             this.isConnected = false;
+            this.useWebSockets = true; // Reset for next connection attempt
         }
 
         sendTypingStart(chatId) {
@@ -1316,7 +1444,7 @@
         // Load chats
         loadChats();
         
-        // Start WebSocket connection
+        // Start WebSocket connection with fallback
         setTimeout(() => {
             console.log('🔌 Starting WebSocket connection...');
             wsManager.connect();
@@ -1329,11 +1457,14 @@
                     updateChatInList(data.payload);
                 }
             });
+            
+            // Start polling as fallback (will be ignored if WebSocket works)
+            wsManager.startPolling();
         }, 1000);
 
-        // Auto-refresh every 60 seconds as backup
+        // Auto-refresh every 60 seconds as backup (reduced frequency)
         setInterval(() => {
-            if (!wsManager.isConnected) {
+            if (!wsManager.isConnected && wsManager.useWebSockets) {
                 console.log('🔄 Auto-refreshing chats (WebSocket disconnected)');
                 loadChats();
             }
@@ -1366,4 +1497,5 @@
     })();
 </script>
 </body>
+
 </html>
