@@ -15,7 +15,7 @@
       background: #000000;
       color: #FFFFFF;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       position: fixed;
@@ -23,6 +23,7 @@
       left: 0;
       right: 0;
       bottom: 0;
+      overflow: hidden;
     }
     
     /* Header */
@@ -30,7 +31,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 24px;
+      padding: calc(16px + env(safe-area-inset-top, 0px)) 24px 16px 24px;
       background: #000000;
       border-bottom: 1px solid #2A2A2A;
       position: sticky;
@@ -167,18 +168,19 @@
       fill: #FFFFFF; 
     }
     
-    /* Message Area */
+    /* Message Area - UPDATED for mobile */
     .message-area { 
       flex: 1; 
       overflow-y: auto; 
       overflow-x: hidden;
       padding: 16px;
-      padding-bottom: 100px;
+      padding-bottom: 180px; /* Increased padding for safe area + input height */
       display: flex; 
       flex-direction: column; 
       gap: 16px; 
       position: relative;
       -webkit-overflow-scrolling: touch;
+      margin-bottom: env(safe-area-inset-bottom, 0px);
     }
     
     /* Message Bubbles */
@@ -357,7 +359,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 16px 24px;
+      padding: calc(16px + env(safe-area-inset-top, 0px)) 24px 16px 24px;
       background: rgba(0, 0, 0, 0.9);
       z-index: 10;
     }
@@ -441,6 +443,7 @@
       justify-content: center;
       gap: 8px;
       padding: 20px;
+      padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
       background: rgba(0, 0, 0, 0.9);
     }
     
@@ -457,10 +460,10 @@
       transform: scale(1.2);
     }
     
-    /* New Message Indicator */
+    /* New Message Indicator - UPDATED for safe area */
     .new-message-indicator {
       position: fixed;
-      bottom: 120px;
+      bottom: calc(140px + env(safe-area-inset-bottom, 0px));
       right: 20px;
       background: #FFFFFF;
       color: #000000;
@@ -469,7 +472,7 @@
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      z-index: 1000;
+      z-index: 1001;
       display: none;
       align-items: center;
       gap: 8px;
@@ -477,19 +480,22 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     
-    /* Input Bar */
+    /* Input Bar - UPDATED for mobile */
     .input-bar {
       display: flex;
       flex-direction: column;
       padding: 12px 16px;
       background: #000000;
       border-top: 1px solid #2A2A2A;
-      position: sticky;
+      position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
       z-index: 1000;
       flex-shrink: 0;
+      /* Safe area handling */
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      box-sizing: border-box;
     }
     
     .preview-area {
@@ -498,6 +504,7 @@
       overflow-x: auto;
       padding: 8px 0;
       max-width: 100%;
+      max-height: 100px;
       -webkit-overflow-scrolling: touch;
     }
     
@@ -534,14 +541,55 @@
       font-weight: 600;
     }
     
+    /* Progress overlay for image upload */
+    .preview-progress {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.3s;
+    }
+    
+    .preview-progress-bar {
+      width: 60%;
+      height: 4px;
+      background: #2A2A2A;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    
+    .preview-progress-bar::after {
+      content: '';
+      display: block;
+      height: 100%;
+      background: #FFFFFF;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    
+    .preview-progress-text {
+      color: white;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
     .input-container {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       background: #1F1F1F;
       border-radius: 24px;
       padding: 8px 12px;
       min-height: 48px;
       border: 1px solid #2A2A2A;
+      max-height: 120px;
+      overflow: hidden;
     }
     
     .input-icon { 
@@ -575,6 +623,8 @@
       margin: 0;
       -webkit-appearance: none;
       appearance: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: default;
     }
     
     .message-input::placeholder { 
@@ -608,10 +658,10 @@
       fill: #000000;
     }
     
-    /* Emoji Picker */
+    /* Emoji Picker - UPDATED for safe area */
     .emoji-modal {
       position: fixed;
-      bottom: 80px;
+      bottom: calc(80px + env(safe-area-inset-bottom, 0px));
       left: 16px;
       right: 16px;
       background: #000000;
@@ -771,10 +821,10 @@
       50% { opacity: 1; }
     }
     
-    /* Toast */
+    /* Toast - UPDATED for safe area */
     #toast {
       position: fixed;
-      bottom: 80px;
+      bottom: calc(100px + env(safe-area-inset-bottom, 0px));
       left: 50%;
       transform: translateX(-50%);
       background: rgba(31, 31, 31, 0.95);
@@ -830,21 +880,65 @@
       }
     }
     
+    /* Handle landscape mode */
+    @media (orientation: landscape) {
+      .input-bar {
+        padding-bottom: 12px;
+      }
+      
+      .message-area {
+        padding-bottom: 160px;
+      }
+      
+      .new-message-indicator {
+        bottom: 140px;
+      }
+      
+      .emoji-modal {
+        bottom: 80px;
+      }
+      
+      #toast {
+        bottom: 100px;
+      }
+    }
+    
+    /* Handle very small screens */
+    @media (max-height: 600px) {
+      .message-area {
+        padding-bottom: 160px;
+      }
+      
+      .input-container {
+        min-height: 44px;
+      }
+      
+      .emoji-modal {
+        height: 320px;
+        max-height: 320px;
+      }
+      
+      .new-message-indicator {
+        bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+      }
+    }
+    
+    /* Better handling of virtual keyboard on iOS */
+    @supports (-webkit-touch-callout: none) {
+      body {
+        height: -webkit-fill-available;
+      }
+      
+      .input-bar {
+        padding-bottom: calc(12px + env(safe-area-inset-bottom) + 10px);
+      }
+    }
+    
     /* Hide scrollbars */
     .message-area::-webkit-scrollbar,
     .preview-area::-webkit-scrollbar,
     .emoji-grid-container::-webkit-scrollbar {
       display: none;
-    }
-    
-    /* Safe area support */
-    @supports (padding: env(safe-area-inset-bottom)) {
-      .input-bar {
-        padding-bottom: calc(12px + env(safe-area-inset-bottom));
-      }
-      header {
-        padding-top: calc(16px + env(safe-area-inset-top));
-      }
     }
   </style>
 </head>
@@ -1096,6 +1190,53 @@
         return groupDiv;
     }
 
+    // ==================== KEYBOARD HANDLING ====================
+    function handleKeyboardBehavior() {
+        let keyboardHeight = 0;
+        
+        // Handle visual viewport changes (keyboard showing/hiding)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                const viewportHeight = window.visualViewport.height;
+                const windowHeight = window.innerHeight;
+                keyboardHeight = windowHeight - viewportHeight;
+                
+                if (keyboardHeight > 100) {
+                    // Keyboard is showing
+                    scrollToBottom();
+                    
+                    // Add extra padding to message area
+                    const extraPadding = Math.max(keyboardHeight, 300);
+                    messageArea.style.paddingBottom = (extraPadding + 120) + 'px';
+                } else {
+                    // Keyboard is hiding
+                    messageArea.style.paddingBottom = '180px';
+                }
+            });
+        }
+        
+        // When input is focused, ensure it's visible
+        messageInput.addEventListener('focus', () => {
+            setTimeout(() => {
+                scrollToBottom();
+            }, 300); // Small delay for keyboard animation
+        });
+        
+        // When input loses focus, restore normal padding
+        messageInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                messageArea.style.paddingBottom = '180px';
+            }, 200);
+        });
+    }
+
+    function scrollToBottom() {
+        setTimeout(() => {
+            messageArea.scrollTop = messageArea.scrollHeight;
+            hideNewMessageIndicator();
+        }, 100);
+    }
+
     // ==================== IMAGE CAROUSEL ====================
     function openImageCarousel(images, startIndex = 0) {
         currentCarouselImages = images;
@@ -1293,7 +1434,7 @@
         // Scroll to bottom if user is near bottom
         if (isUserAtBottom()) {
             setTimeout(() => {
-                messageArea.scrollTop = messageArea.scrollHeight;
+                scrollToBottom();
             }, 100);
         } else if (shouldShowIndicator && message.senderId !== currentUserId) {
             // Only show "new messages" indicator for messages from other users
@@ -1336,7 +1477,7 @@
             // Scroll to show the new message
             if (isUserAtBottom()) {
                 setTimeout(() => {
-                    messageArea.scrollTop = messageArea.scrollHeight;
+                    scrollToBottom();
                 }, 100);
             }
         }
@@ -1628,7 +1769,7 @@
     });
 
     newMessageIndicator.addEventListener('click', () => {
-        messageArea.scrollTop = messageArea.scrollHeight;
+        scrollToBottom();
         hideNewMessageIndicator();
     });
 
@@ -1656,7 +1797,7 @@
         }
     });
 
-    // Add progress bar to image picker - FIXED VERSION
+    // Create image preview with progress
     function createImagePreviewWithProgress(file) {
         const item = document.createElement('div');
         item.className = 'preview-item';
@@ -1692,8 +1833,9 @@
         
         // Create updateProgress function
         const updateProgress = (percent) => {
-            file.progress.value = percent;
-            progressBar.style.width = `${percent}%`;
+            file.progress = { value: percent };
+            progressBar.style.setProperty('--progress-width', `${percent}%`);
+            progressBar.querySelector('::after')?.style.setProperty('width', `${percent}%`);
             progressText.textContent = `${percent}%`;
             
             if (percent >= 100) {
@@ -1706,11 +1848,8 @@
             }
         };
         
-        // Store the updateProgress function directly on the file object
-        file.progress = {
-            value: 0,
-            updateProgress: updateProgress
-        };
+        // Store the updateProgress function
+        file.updateProgress = updateProgress;
         
         removeBtn.onclick = () => {
             pendingImages = pendingImages.filter(f => f !== file);
@@ -1725,56 +1864,6 @@
             updateProgress
         };
     }
-
-    // Add CSS for progress overlay
-    const style = document.createElement('style');
-    style.textContent = `
-        .preview-item {
-            position: relative;
-            width: 80px;
-            height: 80px;
-            flex-shrink: 0;
-        }
-        
-        .preview-progress {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.3s;
-        }
-        
-        .preview-progress-bar {
-            width: 60%;
-            height: 4px;
-            background: #2A2A2A;
-            border-radius: 2px;
-            overflow: hidden;
-            margin-bottom: 8px;
-        }
-        
-        .preview-progress-bar::after {
-            content: '';
-            display: block;
-            height: 100%;
-            background: #FFFFFF;
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-        
-        .preview-progress-text {
-            color: white;
-            font-size: 12px;
-            font-weight: 500;
-        }
-    `;
-    document.head.appendChild(style);
 
     photoInput.addEventListener('change', (e) => {
         const files = Array.from(e.target.files);
@@ -1917,11 +2006,9 @@
             });
 
             try {
-                // Update preview progress - SAFE CHECK
-                if (file.progress && typeof file.progress.updateProgress === 'function') {
-                    file.progress.updateProgress(10);
-                } else {
-                    console.warn('Progress function not found for file:', file.name);
+                // Update preview progress
+                if (file.updateProgress) {
+                    file.updateProgress(10);
                 }
 
                 const xhr = new XMLHttpRequest();
@@ -1930,8 +2017,8 @@
                 xhr.upload.addEventListener('progress', (event) => {
                     if (event.lengthComputable) {
                         const percentComplete = Math.round((event.loaded / event.total) * 90) + 10; // Start from 10%
-                        if (file.progress && typeof file.progress.updateProgress === 'function') {
-                            file.progress.updateProgress(percentComplete);
+                        if (file.updateProgress) {
+                            file.updateProgress(percentComplete);
                         }
                         updateUploadProgress(tempId, percentComplete);
                     }
@@ -1969,8 +2056,8 @@
                 uploadedUrls.push(url);
 
                 // Complete progress
-                if (file.progress && typeof file.progress.updateProgress === 'function') {
-                    file.progress.updateProgress(100);
+                if (file.updateProgress) {
+                    file.updateProgress(100);
                 }
                 updateUploadProgress(tempId, 100);
 
@@ -1998,9 +2085,8 @@
                 }
                 
                 // Update progress to show error
-                if (file.progress && typeof file.progress.updateProgress === 'function') {
-                    file.progress.updateProgress(0);
-                    // We need to find the progress text element differently
+                if (file.updateProgress) {
+                    file.updateProgress(0);
                     const previewItem = tempMessageEl ? tempMessageEl.closest('.preview-item') : null;
                     if (previewItem) {
                         const progressText = previewItem.querySelector('.preview-progress-text');
@@ -2319,7 +2405,7 @@
                 addMessageToUI(msg);
             });
 
-            messageArea.scrollTop = messageArea.scrollHeight;
+            scrollToBottom();
             
             if (wsManager) {
                 wsManager.markAllMessagesRead();
@@ -2348,6 +2434,9 @@
         await loadMessages();
         updateSendButton();
         initEmojiPicker();
+        
+        // Initialize keyboard handling
+        handleKeyboardBehavior();
         
         // Auto-resize textarea
         messageInput.addEventListener('input', function() {
