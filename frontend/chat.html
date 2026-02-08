@@ -1190,6 +1190,13 @@
         window.location.href = 'login.html';
     }
 
+    // Add WebSocket URL configuration
+    const getWebSocketUrl = (token) => {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host.replace(/^www\./, '');
+        return `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
+    };
+
     const urlParams = new URLSearchParams(window.location.search);
     const urlId = urlParams.get('id');
     if (!urlId) {
@@ -1662,7 +1669,7 @@
                 return;
             }
 
-            const wsUrl = `ws://instaping.org/ws?token=${encodeURIComponent(token)}`;
+            const wsUrl = getWebSocketUrl(token);
             console.log('Connecting to Chat Room WebSocket:', wsUrl);
             
             try {
@@ -2604,4 +2611,5 @@
 </script>
 </body>
 </html>
+
 
