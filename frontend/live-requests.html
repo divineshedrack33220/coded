@@ -1071,355 +1071,238 @@ body {
 
   <div id="toast"></div>
 <script>
-// ==================== WEBSOCKET MANAGER ====================
-class WebSocketManager {
+// ==================== FAST POLLING MANAGER WITH WEBSOCKET FALLBACK ====================
+class FeedPollingManager {
     constructor() {
-        this.socket = null;
-        this.reconnectInterval = 3000;
-        this.maxReconnectAttempts = 5;
-        this.reconnectAttempts = 0;
-        this.eventHandlers = new Map();
-        this.isConnected = false;
-        this.shouldReconnect = true;
-        this.connectedUsers = new Set();
+        this.pollingInterval = null;
+        this.pollingIntervalMs = 6000; // Poll every 6 seconds
+        this.lastFeedUpdateTime = 0;
+        this.optimisticUpdates = new Map();
+        this.shouldPoll = true;
+        this.pollingFailures = 0;
+        this.maxPollingFailures = 3;
+        this.webSocket = null;
+        this.useWebSocket = false; // Start with polling
+        this.connectionAttempts = 0;
+        this.maxConnectionAttempts = 2;
     }
 
+    // Try WebSocket first, fall back to polling if it fails
     connect() {
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            console.log('WebSocket already connected');
+        console.log('🌐 Attempting WebSocket connection...');
+        this.tryWebSocket();
+    }
+
+    tryWebSocket() {
+        if (this.connectionAttempts >= this.maxConnectionAttempts) {
+            console.log('📡 Max WebSocket attempts reached, using polling');
+            this.useWebSocket = false;
+            this.startPolling();
             return;
         }
 
-        // Get token from localStorage
+        this.connectionAttempts++;
         const token = localStorage.getItem('token');
         if (!token) {
-            console.warn('No token found, WebSocket connection deferred');
+            console.warn('No token found for WebSocket');
+            this.useWebSocket = false;
+            this.startPolling();
             return;
         }
 
-        // Create WebSocket URL with auth token
-        const wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
-        console.log('Connecting to WebSocket:', wsUrl);
-        
         try {
-            this.socket = new WebSocket(wsUrl);
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host.replace(/^www\./, '');
+            const wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
             
-            this.socket.onopen = () => {
-                console.log('WebSocket connected successfully');
-                this.isConnected = true;
-                this.reconnectAttempts = 0;
-                this.emit('connected');
+            this.webSocket = new WebSocket(wsUrl);
+            
+            this.webSocket.onopen = () => {
+                console.log('✅ WebSocket connected');
+                this.useWebSocket = true;
+                this.connectionAttempts = 0;
+                showToast('🎯 Live updates active');
                 
-                // Show subtle notification
-                showToast('🎯 Live updates connected', 1500);
+                // Stop polling since WebSocket is working
+                this.stopPolling();
                 
-                // Send initial subscriptions
-                setTimeout(() => {
-                    this.send({
-                        type: 'subscribe',
-                        channel: 'feed_updates'
-                    });
-                    
-                    this.send({
-                        type: 'subscribe', 
-                        channel: 'new_requests'
-                    });
-                    
-                    this.send({
-                        type: 'subscribe',
-                        channel: 'user_status'
-                    });
-                }, 500);
+                // Subscribe to channels
+                this.send({
+                    type: 'subscribe',
+                    channel: 'feed_updates'
+                });
             };
 
-            this.socket.onmessage = (event) => {
+            this.webSocket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('📡 WebSocket message:', data);
-                    
-                    // Handle different message types
-                    this.handleMessage(data);
+                    this.handleWebSocketMessage(data);
                 } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
+                    console.error('WebSocket message error:', error);
                 }
             };
 
-            this.socket.onclose = (event) => {
-                console.log('WebSocket disconnected:', event.code, event.reason);
-                this.isConnected = false;
-                this.emit('disconnected');
+            this.webSocket.onclose = () => {
+                console.log('❌ WebSocket disconnected');
+                this.useWebSocket = false;
                 
-                // Show disconnected notification
-                showToast('🔌 Live updates disconnected', 1500);
-                
-                // Attempt reconnect if not intentionally closed
-                if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-                    setTimeout(() => this.reconnect(), this.reconnectInterval);
+                // Start polling as fallback
+                if (this.shouldPoll) {
+                    console.log('📡 Switching to HTTP polling');
+                    this.startPolling();
                 }
             };
 
-            this.socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                this.emit('error', error);
+            this.webSocket.onerror = () => {
+                console.log('⚠️ WebSocket error, falling back to polling');
+                this.useWebSocket = false;
+                this.webSocket = null;
+                
+                // Try polling immediately
+                this.startPolling();
             };
 
         } catch (error) {
-            console.error('Failed to create WebSocket:', error);
-            setTimeout(() => this.reconnect(), this.reconnectInterval);
+            console.log('🚫 WebSocket creation failed:', error);
+            this.useWebSocket = false;
+            this.startPolling();
         }
     }
 
-    reconnect() {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('Max reconnection attempts reached');
-            return;
-        }
-        
-        this.reconnectAttempts++;
-        console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
-        this.connect();
-    }
-
-    send(data) {
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            this.socket.send(JSON.stringify(data));
-            return true;
-        } else {
-            console.warn('WebSocket not ready, message queued:', data);
-            // Queue message for when connection is restored
-            setTimeout(() => this.send(data), 1000);
-            return false;
+    startPolling() {
+        if (!this.pollingInterval && this.shouldPoll) {
+            console.log(`📡 Starting HTTP polling every ${this.pollingIntervalMs}ms`);
+            // First poll immediately
+            setTimeout(() => this.pollForNewPosts(), 100);
+            
+            // Then set interval
+            this.pollingInterval = setInterval(async () => {
+                await this.pollForNewPosts();
+            }, this.pollingIntervalMs);
         }
     }
 
-    on(event, handler) {
-        if (!this.eventHandlers.has(event)) {
-            this.eventHandlers.set(event, []);
+    stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
         }
-        this.eventHandlers.get(event).push(handler);
-        return this;
     }
 
-    off(event, handler) {
-        if (this.eventHandlers.has(event)) {
-            const handlers = this.eventHandlers.get(event);
-            const index = handlers.indexOf(handler);
-            if (index > -1) {
-                handlers.splice(index, 1);
+    async pollForNewPosts() {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await fetch(`${API_BASE_URL}/feed?since=${this.lastFeedUpdateTime}&limit=10`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                this.pollingFailures = 0;
+                const updatedPosts = await response.json();
+                
+                if (updatedPosts.length > 0) {
+                    console.log('🔄 Polling found', updatedPosts.length, 'new posts');
+                    this.lastFeedUpdateTime = Math.floor(Date.now() / 1000);
+                    
+                    updatedPosts.forEach(post => {
+                        this.processUpdatedPost(post);
+                    });
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+        } catch (error) {
+            console.log('📡 Polling error:', error.message);
+            this.pollingFailures++;
+            
+            if (this.pollingFailures >= this.maxPollingFailures) {
+                console.log('⚠️ Too many polling failures, pausing');
+                this.stopPolling();
+                
+                // Try again in 30 seconds
+                setTimeout(() => {
+                    this.pollingFailures = 0;
+                    this.startPolling();
+                }, 30000);
             }
         }
-        return this;
     }
 
-    emit(event, data) {
-        if (this.eventHandlers.has(event)) {
-            this.eventHandlers.get(event).forEach(handler => {
-                try {
-                    handler(data);
-                } catch (error) {
-                    console.error(`Error in event handler for ${event}:`, error);
-                }
-            });
-        }
-    }
-
-    handleMessage(data) {
+    handleWebSocketMessage(data) {
         const { type, payload } = data;
         
-        console.log('📨 WebSocket message received:', type, payload);
-        
         switch (type) {
-            case 'connected':
-                console.log('✅ WebSocket connection confirmed');
-                showToast('✅ Live updates active', 1500);
-                break;
-                
-            case 'subscribed':
-                console.log(`✅ Subscribed to channels:`, payload?.channels || 'feed_updates');
-                break;
-                
             case 'new_request':
                 this.handleNewRequest(payload);
                 break;
-                
             case 'request_update':
                 this.handleRequestUpdate(payload);
                 break;
-                
             case 'request_removed':
                 this.handleRequestRemoved(payload);
                 break;
-                
             case 'user_status_update':
                 this.handleUserStatusUpdate(payload);
                 break;
-                
-            case 'favorite_update':
-                this.handleFavoriteUpdate(payload);
-                break;
-                
-            case 'nearby_users':
-                this.handleNearbyUsers(payload);
-                break;
-                
-            case 'post_ignored':
-                this.handlePostIgnored(payload);
-                break;
-                
-            case 'post_favorited':
-                this.handlePostFavorited(payload);
-                break;
-                
-            case 'post_accepted':
-                this.handlePostAccepted(payload);
-                break;
-                
             case 'pong':
                 // Heartbeat response
-                console.log('❤️ WebSocket heartbeat received');
                 break;
-                
-            case 'ping':
-                // Respond to ping
-                this.send({ type: 'pong' });
-                break;
-                
             default:
-                console.log('Unknown message type:', type, data);
-                this.emit('message', data);
+                console.log('WebSocket message:', type);
         }
     }
 
     handleNewRequest(request) {
-        console.log('🆕 New request received:', request);
-        
-        // Add new request to feed if it's not from current user
+        console.log('🆕 WebSocket: New request', request.id);
         const currentUserId = parseJwt(localStorage.getItem('token'));
         if (request.userId === currentUserId) return;
         
-        // Show notification
-        showToast(`📢 New request from ${request.user?.name || 'Someone nearby'}`);
-        
-        // Add to feed WITHOUT page refresh
-        addRequestToFeed(request);
-        
-        // Play subtle notification sound
+        showToast(`📢 ${request.user?.name || 'Someone'} posted nearby`);
         playNotificationSound();
+        addRequestToFeed(request);
     }
 
     handleRequestUpdate(update) {
-        console.log('✏️ Request updated:', update);
+        console.log('✏️ WebSocket: Request updated', update.id);
         updateRequestInFeed(update);
     }
 
     handleRequestRemoved(requestId) {
-        console.log('🗑️ Request removed:', requestId);
+        console.log('🗑️ WebSocket: Request removed', requestId);
         removeRequestFromFeed(requestId);
     }
 
     handleUserStatusUpdate(update) {
-        console.log('📊 User status updated:', update);
-        
-        // Update status indicator if it's for a user in the feed
+        console.log('📊 WebSocket: User status', update.userId, update.status);
         updateUserStatusInFeed(update.userId, update.status);
-        
-        // Also update in broadcast results if open
-        updateUserStatusInBroadcast(update.userId, update.status);
     }
 
-    handleFavoriteUpdate(update) {
-        console.log('⭐ Favorite update:', update);
-        // This could update favorite counts or indicators
-    }
-
-    handleNearbyUsers(users) {
-        console.log('📍 Nearby users update:', users);
-        
-        // Update broadcast scan results if scan is active
-        const broadcastOverlay = document.getElementById('broadcast-overlay');
-        if (window.isScanning && broadcastOverlay && broadcastOverlay.classList.contains('active')) {
-            // Update dots with new data
-            setTimeout(() => {
-                if (users.length > 0) {
-                    addBroadcastDots(users);
-                    window.nearbyUsers = users;
-                    
-                    // Update results list
-                    const broadcastResults = document.getElementById('broadcast-results');
-                    if (broadcastResults && broadcastResults.classList.contains('active')) {
-                        displayBroadcastResults(users);
-                    }
-                }
-            }, 500);
+    send(data) {
+        if (this.useWebSocket && this.webSocket?.readyState === WebSocket.OPEN) {
+            this.webSocket.send(JSON.stringify(data));
+            return true;
         }
-    }
-
-    handlePostIgnored(payload) {
-        console.log('👎 Post ignored by someone else:', payload);
-        // Remove the post from feed if current user didn't ignore it
-        const currentUserId = parseJwt(localStorage.getItem('token'));
-        if (payload.userId !== currentUserId && payload.postId) {
-            // Fade out the ignored post
-            const card = document.querySelector(`[data-post-id="${payload.postId}"]`);
-            if (card) {
-                card.style.transition = 'opacity 0.5s, transform 0.5s';
-                card.style.opacity = '0.5';
-                card.style.transform = 'translateX(-10px)';
-                
-                setTimeout(() => {
-                    card.style.opacity = '0';
-                    card.style.transform = 'translateX(-100%)';
-                    setTimeout(() => {
-                        if (card.parentNode) {
-                            card.remove();
-                            checkEmpty();
-                        }
-                    }, 500);
-                }, 1000);
-            }
-        }
-    }
-
-    handlePostFavorited(payload) {
-        console.log('❤️ Post favorited by someone:', payload);
-        // Update favorite count or indicator
-        const card = document.querySelector(`[data-post-id="${payload.postId}"]`);
-        if (card) {
-            const favoriteBtn = card.querySelector('.favorite');
-            if (favoriteBtn && payload.userId !== parseJwt(localStorage.getItem('token'))) {
-                // Show that someone else favorited this
-                favoriteBtn.style.animation = 'heartPulse 0.6s ease';
-                setTimeout(() => {
-                    favoriteBtn.style.animation = '';
-                }, 600);
-            }
-        }
-    }
-
-    handlePostAccepted(payload) {
-        console.log('🤝 Post accepted by someone:', payload);
-        // Show notification if someone accepted a request
-        const currentUserId = parseJwt(localStorage.getItem('token'));
-        if (payload.userId !== currentUserId) {
-            showToast(`🤝 ${payload.userName || 'Someone'} accepted a request`, 2000);
-        }
+        return false;
     }
 
     disconnect() {
-        this.shouldReconnect = false;
-        if (this.socket) {
-            this.socket.close();
-            this.socket = null;
+        this.shouldPoll = false;
+        this.stopPolling();
+        
+        if (this.webSocket) {
+            this.webSocket.close();
+            this.webSocket = null;
         }
-        this.isConnected = false;
-        this.emit('disconnected');
     }
 }
 
 // ==================== GLOBAL VARIABLES ====================
 const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
 const API_BASE_URL = 'https://www.instaping.org/api';
-const wsManager = new WebSocketManager();
+const feedManager = new FeedPollingManager();
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -1471,57 +1354,16 @@ function showToast(message, duration = 2000) {
     toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
 }
 
-function createConfetti(btn) {
-    if (!btn) return;
-    
-    const colors = ['#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00'];
-    const rect = btn.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-
-    for (let i = 0; i < 30; i++) {
-        const piece = document.createElement('div');
-        piece.classList.add('confetti-piece');
-        piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        piece.style.left = centerX + (Math.random() - 0.5) * 80 + 'px';
-        piece.style.top = centerY + (Math.random() - 0.5) * 80 + 'px';
-        piece.style.transform = `rotate(${Math.random() * 360}deg)`;
-        piece.style.animationDelay = Math.random() * 0.3 + 's';
-
-        document.body.appendChild(piece);
-
-        setTimeout(() => piece.remove(), 1500);
-    }
-}
-
-// Play subtle notification sound
 function playNotificationSound() {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.2);
-    } catch (e) {
-        console.log('Audio context not supported');
-    }
+        const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+        audio.volume = 0.2;
+        audio.play().catch(() => {});
+    } catch (e) {}
 }
 
-// Helper function to format distance
 function formatDistance(distance) {
-    if (distance === undefined || distance === null || distance === '' || distance === 'Unknown') {
-        return 'Nearby';
-    }
+    if (!distance || distance === 'Unknown') return 'Nearby';
     
     if (typeof distance === 'number') {
         if (distance < 1000) {
@@ -1532,28 +1374,21 @@ function formatDistance(distance) {
     }
     
     if (typeof distance === 'string') {
-        if (distance.includes('m away') || distance.includes('km away')) {
-            return distance;
-        }
         const num = parseFloat(distance);
         if (!isNaN(num)) {
-            if (num < 1000) {
-                return `${Math.round(num)}m away`;
-            } else {
-                return `${(num / 1000).toFixed(1)}km away`;
-            }
+            if (num < 1000) return `${Math.round(num)}m away`;
+            return `${(num / 1000).toFixed(1)}km away`;
         }
     }
     return 'Nearby';
 }
 
-// Enhanced fetch with auth and error handling
 async function fetchWithAuth(url, options = {}) {
     const token = localStorage.getItem('token');
     if (!token) {
         showToast('Please log in first');
         setTimeout(() => window.location.href = 'login.html', 1000);
-        throw new Error('No token found');
+        throw new Error('No token');
     }
 
     const headers = {
@@ -1563,139 +1398,70 @@ async function fetchWithAuth(url, options = {}) {
     };
 
     try {
-        console.log(`📡 Fetching: ${url}`);
         const response = await fetch(url, { ...options, headers });
         
-        // Check if response is HTML (error page) instead of JSON
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('text/html')) {
-            const text = await response.text();
-            console.error('Server returned HTML instead of JSON:', text.substring(0, 200));
-            
-            if (text.includes('<title>InstaPing</title>')) {
-                showToast('API endpoint not found. Please check the URL.');
-                throw new Error(`Endpoint not found: ${url}`);
-            }
-            
-            if (response.status === 500) {
-                showToast('Server error. Please try again later.');
-            }
-            throw new Error(`Server error: ${response.status}`);
-        }
-        
         if (response.status === 401) {
-            showToast('Session expired. Please log in again.');
+            showToast('Session expired');
             localStorage.removeItem('token');
             setTimeout(() => window.location.href = 'login.html', 1500);
             throw new Error('Unauthorized');
         }
         
-        if (response.status === 404) {
-            showToast('Endpoint not found');
-            throw new Error('Not found');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
         }
         
-        if (response.status === 204 || response.headers.get('content-length') === '0') {
-            return response;
-        }
-        
+        if (response.status === 204) return response;
         return response;
     } catch (error) {
-        console.error('Fetch error:', error);
-        if (error.message !== 'Unauthorized' && error.message !== 'Not found') {
-            showToast('Network error. Please check your connection.');
+        if (error.message !== 'Unauthorized') {
+            console.error('Fetch error:', error);
         }
         throw error;
     }
 }
 
-// Parse JWT token safely
 function parseJwt(token) {
     if (!token) return null;
-    
     try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => 
             '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
         ).join(''));
-        
         const payload = JSON.parse(jsonPayload);
         return payload.userId || payload.sub || payload.id || null;
     } catch (e) {
-        console.error('Failed to parse JWT:', e);
         return null;
     }
 }
 
-// Check if token is valid
-function isValidToken(token) {
-    if (!token) return false;
-    
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    
-    try {
-        const payload = parseJwt(token);
-        if (!payload) return false;
-        
-        const expiry = payload.exp;
-        if (expiry) {
-            if (Date.now() >= expiry * 1000) {
-                return false;
-            }
-        }
-        
-        return true;
-    } catch (e) {
-        console.error('Token validation error:', e);
-        return false;
-    }
-}
+// ==================== FAST FEED FUNCTIONS ====================
 
-// ==================== REAL-TIME FEED FUNCTIONS ====================
-
-// Add new request to feed (NO PAGE REFRESH)
 function addRequestToFeed(request) {
     const feedEl = document.getElementById('feed');
     const noRequestsEl = document.getElementById('no-requests');
     const shimmerEl = document.getElementById('shimmer');
     
-    // Check if elements exist
-    if (!feedEl) {
-        console.error('Feed element not found');
-        return;
-    }
+    if (!feedEl) return;
     
-    // Hide shimmer if visible
+    // Hide loading states
     if (shimmerEl && !shimmerEl.classList.contains('hidden')) {
         shimmerEl.classList.add('hidden');
     }
-    
-    // Hide "no requests" message if showing
     if (noRequestsEl && noRequestsEl.style.display === 'block') {
         noRequestsEl.style.display = 'none';
     }
     
-    // Check if request already exists
-    const existingCard = feedEl.querySelector(`[data-post-id="${request.id}"]`);
-    if (existingCard) return;
+    // Check if already exists
+    if (document.querySelector(`[data-post-id="${request.id}"]`)) return;
     
     const currentUserId = parseJwt(localStorage.getItem('token'));
     if (request.userId === currentUserId) return;
     
     const requestUser = request.user || {};
     
-    // Check if this request is already favorited
-    let isFavorited = false;
-    try {
-        // Get current favorites from localStorage or check if this post is in favorites
-        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        isFavorited = favorites.some(fav => fav.targetUserId === request.userId);
-    } catch (e) {
-        console.log('Could not check favorites:', e);
-    }
-    
+    // Create card with minimal DOM operations
     const card = document.createElement('div');
     card.className = 'request-card';
     card.dataset.postId = request.id;
@@ -1711,31 +1477,21 @@ function addRequestToFeed(request) {
             <div class="user-info">
                 <div class="name-age">${requestUser.name || 'User'}</div>
                 <div class="distance">${formatDistance(request.distance)}</div>
-                <div class="user-status" style="font-size: 12px; color: #00FF00; margin-top: 4px;">🟢 Live now</div>
             </div>
         </div>
         ${request.category ? `<div class="category">${request.category}</div>` : ''}
         <div class="request-text">${request.content || 'No content'}</div>
         <div class="card-footer">
-            <div class="time-rating">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>
-                <span>Just now</span>
-            </div>
+            <div class="time-rating">Just now</div>
             <div class="actions">
-                <button class="action-btn ignore" title="Ignore">
-                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                </button>
-                <button class="action-btn favorite ${isFavorited ? 'favorited' : ''}" title="${isFavorited ? 'Remove from favorites' : 'Add to favorites'}">
-                    <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </button>
-                <button class="action-btn accept" title="Accept request">
-                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </button>
+                <button class="action-btn ignore" title="Ignore">✕</button>
+                <button class="action-btn favorite" title="Favorite">❤</button>
+                <button class="action-btn accept" title="Accept">✓</button>
             </div>
         </div>
     `;
     
-    // Insert at the top of the feed with animation
+    // Add to top of feed
     if (feedEl.firstChild) {
         feedEl.insertBefore(card, feedEl.firstChild);
     } else {
@@ -1743,183 +1499,56 @@ function addRequestToFeed(request) {
     }
     
     // Animate entry
-    setTimeout(() => {
-        card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+    requestAnimationFrame(() => {
+        card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
         card.style.opacity = '1';
         card.style.transform = 'translateY(0)';
-    }, 10);
+    });
     
-    // Highlight new card
-    card.style.boxShadow = '0 0 0 2px #00FF00';
-    setTimeout(() => {
-        card.style.boxShadow = '';
-    }, 1000);
-    
-    // Check empty state
-    setTimeout(checkEmpty, 100);
+    checkEmpty();
 }
 
-// Update existing request in feed
 function updateRequestInFeed(update) {
-    if (!update || !update.id) return;
-    
     const card = document.querySelector(`[data-post-id="${update.id}"]`);
     if (!card) return;
     
-    // Update content if changed
     if (update.content) {
         const textEl = card.querySelector('.request-text');
         if (textEl) {
             textEl.textContent = update.content;
-            // Flash effect
             textEl.style.backgroundColor = '#2A2A2A';
-            setTimeout(() => {
-                textEl.style.backgroundColor = '';
-            }, 300);
+            setTimeout(() => textEl.style.backgroundColor = '', 300);
         }
-    }
-    
-    // Update category if changed
-    if (update.category !== undefined) {
-        const categoryEl = card.querySelector('.category');
-        if (update.category) {
-            if (categoryEl) {
-                categoryEl.textContent = update.category;
-            } else {
-                const newCategory = document.createElement('div');
-                newCategory.className = 'category';
-                newCategory.textContent = update.category;
-                const cardHeader = card.querySelector('.card-header');
-                if (cardHeader && cardHeader.nextSibling) {
-                    cardHeader.parentNode.insertBefore(newCategory, cardHeader.nextSibling);
-                }
-            }
-        } else if (categoryEl) {
-            categoryEl.remove();
-        }
-    }
-    
-    // Show updated indicator
-    const timeEl = card.querySelector('.time-rating span');
-    if (timeEl) {
-        const originalText = timeEl.textContent;
-        timeEl.textContent = 'Updated now';
-        timeEl.style.color = '#FFFF00';
-        
-        setTimeout(() => {
-            timeEl.textContent = originalText;
-            timeEl.style.color = '';
-        }, 2000);
     }
 }
 
-// Remove request from feed
 function removeRequestFromFeed(requestId) {
-    if (!requestId) return;
-    
     const card = document.querySelector(`[data-post-id="${requestId}"]`);
     if (card) {
-        card.style.transition = 'opacity 0.5s, transform 0.5s';
+        card.style.transition = 'opacity 0.3s, transform 0.3s';
         card.style.opacity = '0';
         card.style.transform = 'translateX(-100%)';
         
         setTimeout(() => {
             card.remove();
             checkEmpty();
-        }, 500);
+        }, 300);
     }
 }
 
-// Update user status in feed
 function updateUserStatusInFeed(userId, status) {
-    if (!userId || !status) return;
-    
     const cards = document.querySelectorAll(`[data-user-id="${userId}"]`);
     cards.forEach(card => {
-        const userInfo = card.querySelector('.user-info');
-        if (userInfo) {
-            let statusEl = userInfo.querySelector('.user-status');
-            if (!statusEl) {
-                statusEl = document.createElement('div');
-                statusEl.className = 'user-status';
-                statusEl.style.fontSize = '12px';
-                statusEl.style.marginTop = '4px';
-                userInfo.appendChild(statusEl);
-            }
-            
-            let statusText = '';
-            let statusColor = '';
-            let statusEmoji = '';
-            
-            switch(status) {
-                case 'available':
-                    statusText = 'Available';
-                    statusColor = '#00FF00';
-                    statusEmoji = '🟢';
-                    break;
-                case 'busy':
-                    statusText = 'Busy';
-                    statusColor = '#FFFF00';
-                    statusEmoji = '🟡';
-                    break;
-                case 'offline':
-                    statusText = 'Offline';
-                    statusColor = '#FF0000';
-                    statusEmoji = '🔴';
-                    break;
-            }
-            
-            statusEl.textContent = `${statusEmoji} ${statusText}`;
-            statusEl.style.color = statusColor;
+        const statusEl = card.querySelector('.user-status');
+        if (statusEl) {
+            const statusColors = {
+                'available': '#00FF00',
+                'busy': '#FFFF00',
+                'offline': '#FF0000'
+            };
+            statusEl.style.color = statusColors[status] || '#00FF00';
         }
     });
-}
-
-// Update user status in broadcast results
-function updateUserStatusInBroadcast(userId, status) {
-    if (!userId || !status) return;
-    
-    const broadcastResults = document.getElementById('broadcast-results');
-    if (!broadcastResults) return;
-    
-    const resultItems = broadcastResults.querySelectorAll('.broadcast-result-item');
-    resultItems.forEach(item => {
-        const actionBtn = item.querySelector('.broadcast-result-action');
-        if (actionBtn && actionBtn.dataset.userId === userId) {
-            const statusIndicator = item.querySelector('.user-status-indicator');
-            if (!statusIndicator) {
-                const newStatus = document.createElement('div');
-                newStatus.className = 'user-status-indicator';
-                newStatus.style.width = '8px';
-                newStatus.style.height = '8px';
-                newStatus.style.borderRadius = '50%';
-                newStatus.style.marginLeft = '8px';
-                item.querySelector('.broadcast-result-info').appendChild(newStatus);
-            }
-            
-            const indicator = item.querySelector('.user-status-indicator');
-            switch(status) {
-                case 'available':
-                    indicator.style.backgroundColor = '#00FF00';
-                    break;
-                case 'busy':
-                    indicator.style.backgroundColor = '#FFFF00';
-                    break;
-                case 'offline':
-                    indicator.style.backgroundColor = '#FF0000';
-                    break;
-            }
-        }
-    });
-}
-
-function formatTime(timestamp) {
-    if (!timestamp) return 'Just now';
-    const diff = Date.now() - (timestamp * 1000 || Date.now());
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-    return Math.floor(diff / 86400000) + 'd ago';
 }
 
 function checkEmpty() {
@@ -1927,449 +1556,147 @@ function checkEmpty() {
     const noRequestsEl = document.getElementById('no-requests');
     const shimmerEl = document.getElementById('shimmer');
     
-    // Check if elements exist
-    if (!feedEl) {
-        console.warn('Feed element not found in checkEmpty');
-        return;
-    }
+    if (!feedEl) return;
     
     const cards = feedEl.querySelectorAll('.request-card');
     
     if (cards.length === 0) {
-        // Hide shimmer if visible
         if (shimmerEl && !shimmerEl.classList.contains('hidden')) {
             shimmerEl.classList.add('hidden');
         }
-        // Show "no requests" message
         if (noRequestsEl) {
             noRequestsEl.style.display = 'block';
         }
     } else {
-        // Hide "no requests" message
         if (noRequestsEl) {
             noRequestsEl.style.display = 'none';
         }
-        // Hide shimmer if visible
         if (shimmerEl && !shimmerEl.classList.contains('hidden')) {
             shimmerEl.classList.add('hidden');
         }
     }
 }
 
-// ==================== BROADCAST SCAN FUNCTIONS ====================
-
-let isScanning = false;
-let nearbyUsers = [];
-let broadcastDots = [];
-
-// Function to add broadcast dots
-function addBroadcastDots(users) {
-    const broadcastContainer = document.getElementById('broadcast-container');
-    if (!broadcastContainer) return;
-    
-    // Clear existing dots
-    broadcastDots.forEach(dot => dot && dot.remove());
-    broadcastDots = [];
-    
-    users.forEach((user, index) => {
-        const angle = (index / users.length) * Math.PI * 2;
-        const distance = 0.7;
-        
-        const containerSize = broadcastContainer.offsetWidth;
-        const center = containerSize / 2;
-        const x = center + Math.cos(angle) * (distance * center * 0.4);
-        const y = center + Math.sin(angle) * (distance * center * 0.4);
-        
-        const dot = document.createElement('div');
-        dot.className = 'broadcast-dot';
-        dot.style.left = `${x}px`;
-        dot.style.top = `${y}px`;
-        dot.dataset.userId = user.id;
-        dot.dataset.index = index;
-        dot.style.animationDelay = `${index * 0.2}s`;
-        
-        broadcastContainer.appendChild(dot);
-        broadcastDots.push(dot);
-    });
-}
-
-async function broadcastScan() {
-    if (isScanning) return;
-    
-    isScanning = true;
-    const broadcastOverlay = document.getElementById('broadcast-overlay');
-    const broadcastText = document.getElementById('broadcast-text');
-    const broadcastSubtext = document.getElementById('broadcast-subtext');
-    const broadcastContainer = document.getElementById('broadcast-container');
-    const broadcastResults = document.getElementById('broadcast-results');
-    
-    if (!broadcastOverlay || !broadcastText || !broadcastSubtext || !broadcastContainer || !broadcastResults) {
-        console.error('Broadcast elements not found');
-        isScanning = false;
-        return;
-    }
-    
-    broadcastOverlay.classList.add('active');
-    broadcastText.textContent = 'Broadcasting signal...';
-    broadcastSubtext.textContent = 'Searching for users in your area';
-    
-    // Reset results
-    broadcastResults.innerHTML = '';
-    broadcastResults.classList.remove('active');
-    broadcastContainer.classList.remove('hidden');
-    
-    try {
-        for (let i = 0; i < 3; i++) {
-            await new Promise(resolve => setTimeout(resolve, 700));
-            
-            const res = await fetchWithAuth(`${API_BASE_URL}/users/nearby`);
-            
-            if (res.ok) {
-                let users = [];
-                try {
-                    users = await res.json();
-                } catch (jsonError) {
-                    console.error('Failed to parse JSON:', jsonError);
-                    users = [];
-                }
-                
-                nearbyUsers = Array.isArray(users) ? users.slice(0, 6) : [];
-                
-                if (nearbyUsers.length > 0) {
-                    addBroadcastDots(nearbyUsers);
-                    
-                    if (i === 0) {
-                        broadcastText.textContent = 'Signal detected...';
-                        broadcastSubtext.textContent = 'Analyzing nearby signals';
-                    } else if (i === 1) {
-                        broadcastText.textContent = 'Locating users...';
-                        broadcastSubtext.textContent = 'Pinpointing exact locations';
-                    } else if (i === 2) {
-                        broadcastText.textContent = `${nearbyUsers.length} user${nearbyUsers.length > 1 ? 's' : ''} found nearby`;
-                        broadcastSubtext.textContent = 'Scroll to browse';
-                        
-                        setTimeout(() => {
-                            displayBroadcastResults(nearbyUsers);
-                            broadcastResults.classList.add('active');
-                        }, 500);
-                        
-                        const locationBadge = document.getElementById('location-badge');
-                        if (locationBadge) {
-                            locationBadge.textContent = nearbyUsers.length;
-                            locationBadge.style.display = 'flex';
-                        }
-                    }
-                } else if (i === 2) {
-                    broadcastText.textContent = 'No signals detected';
-                    broadcastSubtext.textContent = 'No users found in your immediate area';
-                    displayNoUsersFound();
-                    broadcastResults.classList.add('active');
-                }
-            }
-        }
-    } catch (err) {
-        console.error('Broadcast scan error:', err);
-        if (err.message !== 'Unauthorized') {
-            broadcastText.textContent = 'Broadcast failed';
-            broadcastSubtext.textContent = 'Signal transmission interrupted';
-            displayErrorState();
-            broadcastResults.classList.add('active');
-            showToast('Failed to scan nearby users');
-        }
-    } finally {
-        isScanning = false;
-    }
-}
-
-function displayBroadcastResults(users) {
-    const broadcastResults = document.getElementById('broadcast-results');
-    if (!broadcastResults) return;
-    
-    broadcastResults.innerHTML = '';
-    
-    users.forEach((user, index) => {
-        setTimeout(() => {
-            const resultItem = document.createElement('div');
-            resultItem.className = 'broadcast-result-item';
-            resultItem.style.animation = 'slideUp 0.3s ease';
-            resultItem.style.animationDelay = `${index * 0.1}s`;
-            
-            resultItem.innerHTML = `
-                <div class="profile-photo">
-                    <img src="${user.avatar || fallbackImage}" alt="${user.name || 'User'}" onerror="this.src='${fallbackImage}'">
-                </div>
-                <div class="broadcast-result-info">
-                    <div class="broadcast-result-name">${user.name || 'User'}</div>
-                    <div class="broadcast-result-distance">${formatDistance(user.distance)}</div>
-                </div>
-                <div class="broadcast-result-actions">
-                    <button class="broadcast-result-action" data-user-id="${user.id}" data-action="chat" title="Start Chat">
-                        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17l-.59.59-.58.58V4h16v12z"/></svg>
-                    </button>
-                    <button class="broadcast-result-action" data-user-id="${user.id}" data-action="view" title="View Profile">
-                        <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
-                    </button>
-                </div>
-            `;
-            
-            broadcastResults.appendChild(resultItem);
-        }, index * 100);
-    });
-}
-
-function displayNoUsersFound() {
-    const broadcastResults = document.getElementById('broadcast-results');
-    if (!broadcastResults) return;
-    
-    broadcastResults.innerHTML = `
-        <div class="broadcast-result-item" style="flex-direction: column; text-align: center; padding: 32px 16px;">
-            <div style="width: 64px; height: 64px; background: #2A2A2A; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="#8E8E8E">
-                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                </svg>
-            </div>
-            <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">No users nearby</div>
-            <div style="font-size: 14px; color: #8E8E8E;">Try moving to a different location or check back later</div>
-        </div>
-    `;
-}
-
-function displayErrorState() {
-    const broadcastResults = document.getElementById('broadcast-results');
-    if (!broadcastResults) return;
-    
-    broadcastResults.innerHTML = `
-        <div class="broadcast-result-item" style="flex-direction: column; text-align: center; padding: 32px 16px;">
-            <div style="width: 64px; height: 64px; background: #2A2A2A; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="#FF0000">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                </svg>
-            </div>
-            <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Scan failed</div>
-            <div style="font-size: 14px; color: #8E8E8E;">Please check your connection and try again</div>
-            <button style="margin-top: 16px; padding: 10px 20px; background: #FFFFFF; color: #000000; border: none; border-radius: 20px; font-weight: 600; cursor: pointer; font-family: inherit;" onclick="broadcastScan()">
-                Retry Scan
-            </button>
-        </div>
-    `;
-}
-
-// ==================== APPLICATION INITIALIZATION ====================
+// ==================== INITIALIZATION ====================
 
 (function() {
-    // Create shimmer cards on load (takes up space immediately)
+    // Create shimmer immediately (critical for perceived performance)
     createShimmerCards();
     
-    // Check token first
+    // Check authentication
     const token = localStorage.getItem('token');
     if (!token) {
-        showToast('Please log in to continue');
+        showToast('Please log in');
         setTimeout(() => window.location.href = 'login.html', 1000);
         return;
     }
     
-    if (!isValidToken(token)) {
-        showToast('Session expired. Please log in again.');
-        localStorage.removeItem('token');
-        setTimeout(() => window.location.href = 'login.html', 1500);
-        return;
-    }
-
     const currentUserId = parseJwt(token);
     if (!currentUserId) {
-        showToast('Invalid session. Please log in again.');
+        showToast('Invalid session');
         localStorage.removeItem('token');
         setTimeout(() => window.location.href = 'login.html', 1500);
         return;
     }
 
-    console.log('Current user ID:', currentUserId);
-
-    // ==================== STATUS INDICATOR ====================
+    // Load initial feed FAST
+    setTimeout(() => loadInitialFeed(), 50);
     
-    const statusEl = document.getElementById('status');
-    const statuses = [
-        { text: 'Available', class: 'status-available', value: 'available' },
-        { text: 'Busy', class: 'status-busy', value: 'busy' },
-        { text: 'Offline', class: 'status-offline', value: 'offline' }
-    ];
-    let currentStatusIndex = 0;
+    // Connect to real-time updates
+    setTimeout(() => feedManager.connect(), 500);
 
-    // Load status immediately (critical for user experience)
-    loadStatus();
+    // Setup event handlers
+    setupEventHandlers();
+    setupNavigation();
+    
+    // Load user status
+    loadUserStatus();
 
-    async function loadStatus() {
-        try {
-            // Use requestIdleCallback to load status when browser is idle
-            if ('requestIdleCallback' in window) {
-                requestIdleCallback(async () => {
-                    await performStatusLoad();
-                }, { timeout: 1000 });
-            } else {
-                // Fallback for older browsers
-                setTimeout(performStatusLoad, 100);
-            }
-        } catch (err) {
-            console.error('Load status error:', err);
-            // Set default status immediately to prevent UI shift
-            updateStatusUI();
-        }
-    }
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        feedManager.disconnect();
+    });
 
-    async function performStatusLoad() {
-        try {
-            const res = await fetchWithAuth(`${API_BASE_URL}/me`);
-            
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Failed to load profile: ${res.status} ${errorText}`);
-            }
-            
-            let data;
-            try {
-                data = await res.json();
-            } catch (jsonError) {
-                console.error('Failed to parse profile JSON:', jsonError);
-                throw new Error('Invalid server response');
-            }
-            
-            const statusValue = data.status || 'available';
-            const index = statuses.findIndex(s => s.value === statusValue);
-            if (index !== -1) {
-                currentStatusIndex = index;
-                updateStatusUI();
-            }
-        } catch (err) {
-            console.error('Load status error:', err);
-            if (err.message !== 'Unauthorized') {
-                showToast('Failed to load status');
-            }
-            // Ensure UI is updated even on error
-            updateStatusUI();
-        }
-    }
+    console.log('🚀 Feed page initialized');
+})();
 
-    function updateStatusUI() {
-        if (!statusEl) return;
-        
-        const s = statuses[currentStatusIndex];
-        statusEl.className = `status-indicator ${s.class}`;
-        statusEl.innerHTML = `<svg viewBox="0 0 8 8" width="12" height="12"><circle cx="4" cy="4" r="4"/></svg> ${s.text}`;
-        
-        // Prevent layout shift by ensuring element has consistent dimensions
-        statusEl.style.minWidth = '120px';
-        statusEl.style.minHeight = '36px';
-    }
+// ==================== FAST INITIAL FEED LOAD ====================
 
-    if (statusEl) {
-        statusEl.addEventListener('click', async () => {
-            currentStatusIndex = (currentStatusIndex + 1) % statuses.length;
-            updateStatusUI();
-            const newStatus = statuses[currentStatusIndex].value;
-            try {
-                const res = await fetchWithAuth(`${API_BASE_URL}/me/status`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ status: newStatus })
-                });
-                
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(`Failed to update status: ${errorText}`);
-                }
-                
-                showToast(`Status changed to ${newStatus}`);
-                
-                // Broadcast status update via WebSocket
-                if (wsManager.isConnected) {
-                    wsManager.send({
-                        type: 'status_update',
-                        status: newStatus,
-                        userId: currentUserId
-                    });
-                }
-            } catch (err) {
-                console.error('Update status error:', err);
-                if (err.message !== 'Unauthorized') {
-                    showToast('Failed to update status');
-                }
-            }
+async function loadInitialFeed() {
+    const feedEl = document.getElementById('feed');
+    const noRequestsEl = document.getElementById('no-requests');
+    const shimmerEl = document.getElementById('shimmer');
+    
+    if (!feedEl || !noRequestsEl || !shimmerEl) return;
+    
+    // Show shimmer while loading
+    shimmerEl.classList.remove('hidden');
+    
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/feed?limit=15`, {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
-    }
-
-    // ==================== INITIAL FEED LOAD ====================
-    
-    async function loadFeed() {
-        const feedEl = document.getElementById('feed');
-        const noRequestsEl = document.getElementById('no-requests');
-        const shimmerEl = document.getElementById('shimmer');
         
-        // Check if elements exist
-        if (!feedEl || !noRequestsEl || !shimmerEl) {
-            console.error('Required elements not found for loadFeed');
-            return;
-        }
-        
-        // Show shimmer
-        shimmerEl.classList.remove('hidden');
-        feedEl.innerHTML = '';
-        feedEl.appendChild(shimmerEl);
-
-        try {
-            const res = await fetchWithAuth(`${API_BASE_URL}/feed`);
-            
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Failed to load feed: ${res.status} ${errorText}`);
-            }
-            
-            let posts;
-            try {
-                posts = await res.json();
-            } catch (jsonError) {
-                console.error('Failed to parse feed JSON:', jsonError);
-                posts = [];
-            }
-
-            feedEl.innerHTML = '';
+        if (response.ok) {
+            const posts = await response.json();
             const postsArray = Array.isArray(posts) ? posts : [];
-
+            
+            feedEl.innerHTML = '';
+            
             if (postsArray.length === 0) {
                 noRequestsEl.style.display = 'block';
                 shimmerEl.classList.add('hidden');
                 return;
             }
-
-            noRequestsEl.style.display = 'none';
-
-            let favorites = [];
-            try {
-                const favRes = await fetchWithAuth(`${API_BASE_URL}/favorites`);
-                if (favRes.ok) {
-                    const favData = await favRes.json();
-                    favorites = Array.isArray(favData) ? favData : [];
+            
+            // Load first 5 posts immediately for fast display
+            const initialPosts = postsArray.slice(0, 5);
+            const remainingPosts = postsArray.slice(5);
+            
+            // Display initial posts
+            initialPosts.forEach(post => {
+                if (post.userId !== currentUserId) {
+                    createPostCard(post);
                 }
-            } catch (err) {
-                console.error('Failed to load favorites:', err);
-                favorites = [];
+            });
+            
+            // Hide shimmer after initial load
+            shimmerEl.classList.add('hidden');
+            
+            // Load remaining posts in background
+            if (remainingPosts.length > 0) {
+                setTimeout(() => {
+                    remainingPosts.forEach(post => {
+                        if (post.userId !== currentUserId) {
+                            createPostCard(post);
+                        }
+                    });
+                }, 100);
             }
+            
+            checkEmpty();
+        }
+    } catch (err) {
+        console.error('Feed load error:', err);
+        feedEl.innerHTML = '<div class="loading-state">Error loading feed</div>';
+        shimmerEl.classList.add('hidden');
+    }
+}
 
-            const favoriteUserIds = new Set(favorites.map(f => f.targetUserId || ''));
-
-        
-postsArray.forEach(post => {
+function createPostCard(post) {
+    const feedEl = document.getElementById('feed');
+    if (!feedEl) return;
+    
     const postUser = post.user || {};
-    const cardUserId = postUser.id || post.userId;
-
-    if (cardUserId === currentUserId) return;
-
-    // Check if already favorited
-    let isFavorited = favoriteUserIds.has(cardUserId);
-
+    const currentUserId = parseJwt(localStorage.getItem('token'));
+    if (postUser.id === currentUserId) return;
+    
     const card = document.createElement('div');
     card.className = 'request-card';
     card.dataset.postId = post.id;
-    card.dataset.userId = cardUserId;
-
+    card.dataset.userId = postUser.id;
+    
     card.innerHTML = `
         <div class="card-header">
             <div class="profile-photo">
@@ -2378,45 +1705,77 @@ postsArray.forEach(post => {
             <div class="user-info">
                 <div class="name-age">${postUser.name || 'User'}</div>
                 <div class="distance">${formatDistance(post.distance)}</div>
-                <div class="user-status" style="font-size: 12px; color: #00FF00; margin-top: 4px;">🟢 Live now</div>
             </div>
         </div>
         ${post.category ? `<div class="category">${post.category}</div>` : ''}
         <div class="request-text">${post.content || 'No content'}</div>
         <div class="card-footer">
-            <div class="time-rating">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>
-                <span>${formatTime(post.createdAt)}</span>
-            </div>
+            <div class="time-rating">Just now</div>
             <div class="actions">
-                <button class="action-btn ignore" title="Ignore">
-                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                </button>
-                <button class="action-btn favorite ${isFavorited ? 'favorited' : ''}" title="${isFavorited ? 'Remove from favorites' : 'Add to favorites'}">
-                    <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                </button>
-                <button class="action-btn accept" title="Accept request">
-                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </button>
+                <button class="action-btn ignore" title="Ignore">✕</button>
+                <button class="action-btn favorite" title="Favorite">❤</button>
+                <button class="action-btn accept" title="Accept">✓</button>
             </div>
         </div>
     `;
-    feedEl.appendChild(card);
-});
-            shimmerEl.classList.add('hidden');
-            checkEmpty();
-        } catch (err) {
-            console.error('Feed load error:', err);
-            if (err.message !== 'Unauthorized') {
-                showToast('Failed to load live requests');
-                feedEl.innerHTML = '<div class="loading-state">Error loading. <button onclick="location.reload()">Retry</button></div>';
-            }
-            shimmerEl.classList.add('hidden');
-        }
-    }
-
-    // ==================== EVENT HANDLERS ====================
     
+    feedEl.appendChild(card);
+}
+
+// ==================== USER STATUS ====================
+
+async function loadUserStatus() {
+    const statusEl = document.getElementById('status');
+    if (!statusEl) return;
+    
+    const statuses = [
+        { text: 'Available', class: 'status-available', value: 'available' },
+        { text: 'Busy', class: 'status-busy', value: 'busy' },
+        { text: 'Offline', class: 'status-offline', value: 'offline' }
+    ];
+    let currentStatusIndex = 0;
+    
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/me`);
+        if (response.ok) {
+            const data = await response.json();
+            const statusValue = data.status || 'available';
+            const index = statuses.findIndex(s => s.value === statusValue);
+            if (index !== -1) {
+                currentStatusIndex = index;
+                updateStatusUI();
+            }
+        }
+    } catch (err) {
+        console.log('Status load error:', err);
+    }
+    
+    function updateStatusUI() {
+        const s = statuses[currentStatusIndex];
+        statusEl.className = `status-indicator ${s.class}`;
+        statusEl.innerHTML = `<span>${s.text}</span>`;
+    }
+    
+    statusEl.addEventListener('click', async () => {
+        currentStatusIndex = (currentStatusIndex + 1) % statuses.length;
+        updateStatusUI();
+        const newStatus = statuses[currentStatusIndex].value;
+        
+        try {
+            await fetchWithAuth(`${API_BASE_URL}/me/status`, {
+                method: 'PUT',
+                body: JSON.stringify({ status: newStatus })
+            });
+            showToast(`Status: ${newStatus}`);
+        } catch (err) {
+            console.error('Status update error:', err);
+        }
+    });
+}
+
+// ==================== EVENT HANDLERS ====================
+
+function setupEventHandlers() {
     document.addEventListener('click', async (e) => {
         const btn = e.target.closest('.action-btn');
         if (!btn) return;
@@ -2426,6 +1785,7 @@ postsArray.forEach(post => {
         
         const userId = card.dataset.userId;
         const postId = card.dataset.postId;
+        const currentUserId = parseJwt(localStorage.getItem('token'));
 
         if (userId === currentUserId) {
             showToast('Cannot interact with your own post');
@@ -2439,161 +1799,71 @@ postsArray.forEach(post => {
                     body: JSON.stringify({ participants: [userId] })
                 });
                 
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(`Failed to create chat: ${errorText}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast('🤝 Chat created!');
+                    
+                    // Remove card
+                    card.style.transition = 'opacity 0.3s, transform 0.3s';
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateX(100%)';
+                    
+                    setTimeout(() => {
+                        card.remove();
+                        checkEmpty();
+                        window.location.href = `chat.html?id=${data.id}`;
+                    }, 300);
                 }
-                
-                let data;
-                try {
-                    data = await res.json();
-                } catch (jsonError) {
-                    throw new Error('Invalid server response');
-                }
-                
-                showToast('🤝 Chat created!');
-                
-                // Notify via WebSocket
-                if (wsManager.isConnected) {
-                    wsManager.send({
-                        type: 'post_accepted',
-                        postId: postId,
-                        userId: currentUserId,
-                        targetUserId: userId,
-                        chatId: data.id
+            } catch (err) {
+                showToast('Failed to create chat');
+            }
+            
+        } else if (btn.classList.contains('favorite')) {
+            const isFavorited = btn.classList.contains('favorited');
+            
+            try {
+                if (isFavorited) {
+                    await fetchWithAuth(`${API_BASE_URL}/favorite`, {
+                        method: 'DELETE',
+                        body: JSON.stringify({ targetUserId: userId })
                     });
+                    btn.classList.remove('favorited');
+                    btn.title = 'Add to favorites';
+                    showToast('💔 Removed from favorites');
+                } else {
+                    await fetchWithAuth(`${API_BASE_URL}/favorite`, {
+                        method: 'POST',
+                        body: JSON.stringify({ targetUserId: userId })
+                    });
+                    btn.classList.add('favorited');
+                    btn.title = 'Remove from favorites';
+                    showToast('❤️ Added to favorites');
                 }
                 
-                // Remove card with animation
-                card.style.transition = 'opacity 0.5s, transform 0.5s';
+                // Remove card
+                card.style.transition = 'opacity 0.3s, transform 0.3s';
                 card.style.opacity = '0';
-                card.style.transform = 'translateX(100%)';
+                card.style.transform = 'translateY(-20px)';
                 
                 setTimeout(() => {
                     card.remove();
                     checkEmpty();
-                    
-                    // Navigate to chat after animation
-                    setTimeout(() => {
-                        window.location.href = `chat.html?id=${data.id}`;
-                    }, 300);
-                }, 500);
+                }, 300);
                 
             } catch (err) {
-                console.error('Chat creation error:', err);
-                if (err.message !== 'Unauthorized') {
-                    showToast('Failed to create chat: ' + err.message);
-                }
-            }
-     } else if (btn.classList.contains('favorite')) {
-    btn.classList.add('animate');
-    setTimeout(() => btn.classList.remove('animate'), 600);
-
-    const isCurrentlyFavorited = btn.classList.contains('favorited');
-
-    try {
-        if (isCurrentlyFavorited) {
-            // REMOVE from favorites - send as JSON body
-            const res = await fetchWithAuth(`${API_BASE_URL}/favorite`, {
-                method: 'DELETE',
-                body: JSON.stringify({ targetUserId: userId }),
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (res.status === 404) {
-                // Already removed, just update UI
-                showToast('Already removed from favorites');
-            } else if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Failed to remove favorite: ${errorText}`);
-            } else {
-                showToast('💔 Removed from favorites');
+                showToast('Failed to update favorite');
             }
             
-            btn.classList.remove('favorited');
-            btn.title = 'Add to favorites';
-            
-        } else {
-            // ADD to favorites
-            const res = await fetchWithAuth(`${API_BASE_URL}/favorite`, {
-                method: 'POST',
-                body: JSON.stringify({ targetUserId: userId })
-            });
-
-            if (res.status === 409) {
-                showToast('Already in favorites');
-                btn.classList.add('favorited');
-                btn.title = 'Remove from favorites';
-            } else if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Failed to add favorite: ${errorText}`);
-            } else {
-                showToast('❤️ Added to favorites');
-                btn.classList.add('favorited');
-                createConfetti(btn);
-                btn.title = 'Remove from favorites';
-            }
-        }
-
-        // Notify via WebSocket
-        if (wsManager.isConnected) {
-            wsManager.send({
-                type: 'post_favorited',
-                postId: postId,
-                userId: currentUserId,
-                targetUserId: userId,
-                action: isCurrentlyFavorited ? 'removed' : 'added'
-            });
-        }
-
-        // Remove card with animation
-        card.style.transition = 'opacity 0.5s, transform 0.5s';
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(-20px)';
-        
-        setTimeout(() => {
-            card.remove();
-            checkEmpty();
-        }, 500);
-
-    } catch (err) {
-        console.error('Favorite action error:', err);
-        if (err.message !== 'Unauthorized') {
-            showToast('Failed to update favorite: ' + err.message);
-        }
-        // Revert UI if error
-        btn.classList.toggle('favorited');
-        btn.classList.toggle('animate');
-    }
-
         } else if (btn.classList.contains('ignore')) {
-            // Animate ignore
-            btn.style.transform = 'rotate(90deg)';
-            setTimeout(() => {
-                btn.style.transform = '';
-            }, 300);
-            
-            // Remove card with animation
-            card.style.transition = 'opacity 0.5s, transform 0.5s';
+            // Remove card immediately
+            card.style.transition = 'opacity 0.3s, transform 0.3s';
             card.style.opacity = '0';
             card.style.transform = 'translateX(-100%)';
             
             setTimeout(() => {
                 card.remove();
                 checkEmpty();
-            }, 500);
-            
-            // Notify via WebSocket
-            if (wsManager.isConnected) {
-                wsManager.send({
-                    type: 'post_ignored',
-                    postId: postId,
-                    userId: currentUserId,
-                    targetUserId: userId
-                });
-            }
+            }, 300);
             
             showToast('👎 Request ignored');
         }
@@ -2606,90 +1876,18 @@ postsArray.forEach(post => {
             if (!card) return;
             
             const userId = card.dataset.userId;
+            const currentUserId = parseJwt(localStorage.getItem('token'));
+            
             if (userId && userId !== currentUserId) {
                 window.location.href = `view-profile.html?id=${userId}`;
             }
         }
     });
+}
 
-    // ==================== BROADCAST EVENT LISTENERS ====================
-    
-    const locationFab = document.getElementById('location-fab');
-    const broadcastClose = document.getElementById('broadcast-close');
-    const broadcastOverlay = document.getElementById('broadcast-overlay');
+// ==================== NAVIGATION ====================
 
-    if (locationFab) {
-        locationFab.addEventListener('click', broadcastScan);
-    }
-    
-    if (broadcastClose) {
-        broadcastClose.addEventListener('click', () => {
-            if (broadcastOverlay) {
-                broadcastOverlay.classList.remove('active');
-            }
-        });
-    }
-    
-    if (broadcastOverlay) {
-        broadcastOverlay.addEventListener('click', (e) => {
-            if (e.target === broadcastOverlay) {
-                broadcastOverlay.classList.remove('active');
-            }
-        });
-    }
-
-    // Handle broadcast result actions
-    document.addEventListener('click', async (e) => {
-        const actionBtn = e.target.closest('.broadcast-result-action');
-        if (!actionBtn) return;
-        
-        const userId = actionBtn.dataset.userId;
-        const action = actionBtn.dataset.action;
-        
-        if (!userId) return;
-        
-        if (action === 'chat') {
-            try {
-                const res = await fetchWithAuth(`${API_BASE_URL}/chats`, {
-                    method: 'POST',
-                    body: JSON.stringify({ participants: [userId] })
-                });
-                
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(`Failed to create chat: ${errorText}`);
-                }
-                
-                let data;
-                try {
-                    data = await res.json();
-                } catch (jsonError) {
-                    throw new Error('Invalid server response');
-                }
-                
-                showToast('Chat created!');
-                const broadcastOverlay = document.getElementById('broadcast-overlay');
-                if (broadcastOverlay) {
-                    broadcastOverlay.classList.remove('active');
-                }
-                setTimeout(() => window.location.href = `chat.html?id=${data.id}`, 800);
-            } catch (err) {
-                console.error('Chat creation error:', err);
-                if (err.message !== 'Unauthorized') {
-                    showToast('Failed to create chat: ' + err.message);
-                }
-            }
-        } else if (action === 'view') {
-            const broadcastOverlay = document.getElementById('broadcast-overlay');
-            if (broadcastOverlay) {
-                broadcastOverlay.classList.remove('active');
-            }
-            window.location.href = `view-profile.html?id=${userId}`;
-        }
-    });
-
-    // ==================== NAVIGATION ====================
-    
+function setupNavigation() {
     const navLive = document.getElementById('nav-live');
     const navFavorites = document.getElementById('nav-favorites');
     const navChats = document.getElementById('nav-chats');
@@ -2698,8 +1896,7 @@ postsArray.forEach(post => {
     
     if (navLive) {
         navLive.addEventListener('click', () => {
-            // Just reload the feed, not the whole page
-            loadFeed();
+            loadInitialFeed();
             showToast('🔄 Feed refreshed');
         });
     }
@@ -2721,61 +1918,8 @@ postsArray.forEach(post => {
             window.location.href = 'post.html';
         });
     }
-
-    // ==================== WEBSOCKET INITIALIZATION ====================
-    
-    // Connect WebSocket immediately
-    setTimeout(() => {
-        wsManager.connect();
-        
-        // Listen for WebSocket events
-        wsManager.on('connected', () => {
-            console.log('✅ WebSocket connected event received');
-            // Update status indicator
-            const statusIndicator = document.querySelector('.status-indicator');
-            if (statusIndicator) {
-                statusIndicator.style.boxShadow = '0 0 10px #00FF00';
-                setTimeout(() => {
-                    statusIndicator.style.boxShadow = '';
-                }, 2000);
-            }
-        });
-        
-        wsManager.on('disconnected', () => {
-            console.log('🔌 WebSocket disconnected event received');
-        });
-        
-    }, 500);
-
-    // Clean up WebSocket on page unload
-    window.addEventListener('beforeunload', () => {
-        wsManager.disconnect();
-    });
-
-    // ==================== SERVICE WORKER ====================
-    
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('Service Worker registered', reg))
-                .catch(err => console.error('Service Worker registration failed', err));
-        });
-    }
-
-    // ==================== INITIALIZE APP ====================
-    
-    // Initialize
-    loadStatus();
-    loadFeed();
-
-    // Auto-refresh feed every 30 seconds as backup
-    setInterval(() => {
-        if (!wsManager.isConnected) {
-            console.log('🔄 Auto-refreshing feed (WebSocket disconnected)');
-            loadFeed();
-        }
-    }, 30000);
-})();
+}
 </script>
 </body>
+
 </html>
