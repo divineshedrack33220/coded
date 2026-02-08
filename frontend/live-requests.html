@@ -1075,19 +1075,18 @@ body {
 class FeedPollingManager {
     constructor() {
         this.pollingInterval = null;
-        this.pollingIntervalMs = 6000; // Poll every 6 seconds
+        this.pollingIntervalMs = 6000;
         this.lastFeedUpdateTime = 0;
         this.optimisticUpdates = new Map();
         this.shouldPoll = true;
         this.pollingFailures = 0;
         this.maxPollingFailures = 3;
         this.webSocket = null;
-        this.useWebSocket = false; // Start with polling
+        this.useWebSocket = false;
         this.connectionAttempts = 0;
         this.maxConnectionAttempts = 2;
     }
 
-    // Try WebSocket first, fall back to polling if it fails
     connect() {
         console.log('🌐 Attempting WebSocket connection...');
         this.tryWebSocket();
@@ -1123,10 +1122,8 @@ class FeedPollingManager {
                 this.connectionAttempts = 0;
                 showToast('🎯 Live updates active');
                 
-                // Stop polling since WebSocket is working
                 this.stopPolling();
                 
-                // Subscribe to channels
                 this.send({
                     type: 'subscribe',
                     channel: 'feed_updates'
@@ -1146,7 +1143,6 @@ class FeedPollingManager {
                 console.log('❌ WebSocket disconnected');
                 this.useWebSocket = false;
                 
-                // Start polling as fallback
                 if (this.shouldPoll) {
                     console.log('📡 Switching to HTTP polling');
                     this.startPolling();
@@ -1158,7 +1154,6 @@ class FeedPollingManager {
                 this.useWebSocket = false;
                 this.webSocket = null;
                 
-                // Try polling immediately
                 this.startPolling();
             };
 
@@ -1172,6 +1167,7 @@ class FeedPollingManager {
     startPolling() {
         if (!this.pollingInterval && this.shouldPoll) {
             console.log(`📡 Starting HTTP polling every ${this.pollingIntervalMs}ms`);
+            
             // First poll immediately
             setTimeout(() => this.pollForNewPosts(), 100);
             
@@ -1206,8 +1202,9 @@ class FeedPollingManager {
                     console.log('🔄 Polling found', updatedPosts.length, 'new posts');
                     this.lastFeedUpdateTime = Math.floor(Date.now() / 1000);
                     
+                    // Process updated posts
                     updatedPosts.forEach(post => {
-                        this.processUpdatedPost(post);
+                        this.handleNewRequest(post); // Use existing method
                     });
                 }
             } else {
@@ -1222,7 +1219,6 @@ class FeedPollingManager {
                 console.log('⚠️ Too many polling failures, pausing');
                 this.stopPolling();
                 
-                // Try again in 30 seconds
                 setTimeout(() => {
                     this.pollingFailures = 0;
                     this.startPolling();
@@ -1239,13 +1235,13 @@ class FeedPollingManager {
                 this.handleNewRequest(payload);
                 break;
             case 'request_update':
-                this.handleRequestUpdate(payload);
+                updateRequestInFeed(payload); // Use global function
                 break;
             case 'request_removed':
-                this.handleRequestRemoved(payload);
+                removeRequestFromFeed(payload); // Use global function
                 break;
             case 'user_status_update':
-                this.handleUserStatusUpdate(payload);
+                updateUserStatusInFeed(payload.userId, payload.status); // Use global function
                 break;
             case 'pong':
                 // Heartbeat response
@@ -1256,28 +1252,16 @@ class FeedPollingManager {
     }
 
     handleNewRequest(request) {
-        console.log('🆕 WebSocket: New request', request.id);
+        console.log('🆕 New request', request.id);
         const currentUserId = parseJwt(localStorage.getItem('token'));
         if (request.userId === currentUserId) return;
         
-        showToast(`📢 ${request.user?.name || 'Someone'} posted nearby`);
-        playNotificationSound();
+        // Show notification only for new posts, not on initial load
+        if (this.lastFeedUpdateTime > 0) {
+            showToast(`📢 ${request.user?.name || 'Someone'} posted nearby`);
+            playNotificationSound();
+        }
         addRequestToFeed(request);
-    }
-
-    handleRequestUpdate(update) {
-        console.log('✏️ WebSocket: Request updated', update.id);
-        updateRequestInFeed(update);
-    }
-
-    handleRequestRemoved(requestId) {
-        console.log('🗑️ WebSocket: Request removed', requestId);
-        removeRequestFromFeed(requestId);
-    }
-
-    handleUserStatusUpdate(update) {
-        console.log('📊 WebSocket: User status', update.userId, update.status);
-        updateUserStatusInFeed(update.userId, update.status);
     }
 
     send(data) {
@@ -1303,6 +1287,7 @@ class FeedPollingManager {
 const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
 const API_BASE_URL = 'https://www.instaping.org/api';
 const feedManager = new FeedPollingManager();
+let currentUserId = null; // Define globally
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -1577,49 +1562,6 @@ function checkEmpty() {
     }
 }
 
-// ==================== INITIALIZATION ====================
-
-(function() {
-    // Create shimmer immediately (critical for perceived performance)
-    createShimmerCards();
-    
-    // Check authentication
-    const token = localStorage.getItem('token');
-    if (!token) {
-        showToast('Please log in');
-        setTimeout(() => window.location.href = 'login.html', 1000);
-        return;
-    }
-    
-    const currentUserId = parseJwt(token);
-    if (!currentUserId) {
-        showToast('Invalid session');
-        localStorage.removeItem('token');
-        setTimeout(() => window.location.href = 'login.html', 1500);
-        return;
-    }
-
-    // Load initial feed FAST
-    setTimeout(() => loadInitialFeed(), 50);
-    
-    // Connect to real-time updates
-    setTimeout(() => feedManager.connect(), 500);
-
-    // Setup event handlers
-    setupEventHandlers();
-    setupNavigation();
-    
-    // Load user status
-    loadUserStatus();
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', () => {
-        feedManager.disconnect();
-    });
-
-    console.log('🚀 Feed page initialized');
-})();
-
 // ==================== FAST INITIAL FEED LOAD ====================
 
 async function loadInitialFeed() {
@@ -1649,6 +1591,9 @@ async function loadInitialFeed() {
                 shimmerEl.classList.add('hidden');
                 return;
             }
+            
+            // Get current user ID from token
+            const currentUserId = parseJwt(token);
             
             // Load first 5 posts immediately for fast display
             const initialPosts = postsArray.slice(0, 5);
@@ -1688,14 +1633,16 @@ function createPostCard(post) {
     const feedEl = document.getElementById('feed');
     if (!feedEl) return;
     
+    const token = localStorage.getItem('token');
+    const currentUserId = parseJwt(token);
     const postUser = post.user || {};
-    const currentUserId = parseJwt(localStorage.getItem('token'));
-    if (postUser.id === currentUserId) return;
+    
+    if (postUser.id === currentUserId || post.userId === currentUserId) return;
     
     const card = document.createElement('div');
     card.className = 'request-card';
     card.dataset.postId = post.id;
-    card.dataset.userId = postUser.id;
+    card.dataset.userId = postUser.id || post.userId;
     
     card.innerHTML = `
         <div class="card-header">
@@ -1721,6 +1668,51 @@ function createPostCard(post) {
     
     feedEl.appendChild(card);
 }
+
+// ==================== INITIALIZATION ====================
+
+(function() {
+    // Create shimmer immediately
+    createShimmerCards();
+    
+    // Check authentication
+    const token = localStorage.getItem('token');
+    if (!token) {
+        showToast('Please log in');
+        setTimeout(() => window.location.href = 'login.html', 1000);
+        return;
+    }
+    
+    currentUserId = parseJwt(token);
+    if (!currentUserId) {
+        showToast('Invalid session');
+        localStorage.removeItem('token');
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+    }
+
+    console.log('Current user ID:', currentUserId);
+
+    // Load initial feed FAST
+    setTimeout(() => loadInitialFeed(), 50);
+    
+    // Connect to real-time updates
+    setTimeout(() => feedManager.connect(), 500);
+
+    // Setup event handlers
+    setupEventHandlers();
+    setupNavigation();
+    
+    // Load user status
+    loadUserStatus();
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        feedManager.disconnect();
+    });
+
+    console.log('🚀 Feed page initialized');
+})();
 
 // ==================== USER STATUS ====================
 
@@ -1923,3 +1915,4 @@ function setupNavigation() {
 </body>
 
 </html>
+
