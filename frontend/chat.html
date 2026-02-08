@@ -1190,12 +1190,12 @@
         window.location.href = 'login.html';
     }
 
-    // Add WebSocket URL configuration
-    const getWebSocketUrl = (token) => {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host.replace(/^www\./, '');
-        return `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
-    };
+    // Check if we're in production (Render) or local
+    const isProduction = window.location.hostname !== 'localhost' && 
+                         window.location.hostname !== '127.0.0.1';
+    
+    // Use polling for production, WebSocket for local
+    const USE_POLLING = isProduction;
 
     const urlParams = new URLSearchParams(window.location.search);
     const urlId = urlParams.get('id');
@@ -1241,8 +1241,10 @@
     let chatId = null;
     let pendingImages = [];
     let wsManager = null;
+    let pollManager = null;
     let typingTimer = null;
     let sendingMessages = new Map();
+    let lastMessageId = null;
     
     // Carousel state
     let currentCarouselImages = [];
@@ -1606,6 +1608,11 @@
         const messageElement = createMessageElement(message, isTemporary);
         messageArea.appendChild(messageElement);
         
+        // Update last message ID
+        if (!isTemporary) {
+            lastMessageId = message.id;
+        }
+        
         // Scroll to bottom if user is near bottom
         if (isUserAtBottom()) {
             setTimeout(() => {
@@ -1645,7 +1652,167 @@
         }
     }
 
-    // ==================== WEBSOCKET MANAGER ====================
+    // ==================== HTTP POLLING MANAGER ====================
+    class HttpPollingManager {
+        constructor(chatId) {
+            this.chatId = chatId;
+            this.isPolling = false;
+            this.pollInterval = 3000; // Poll every 3 seconds
+            this.lastPollTime = 0;
+            this.pollTimeout = null;
+        }
+
+        start() {
+            if (this.isPolling) return;
+            
+            this.isPolling = true;
+            console.log('🔄 Starting HTTP polling for chat:', this.chatId);
+            this.pollForNewMessages();
+        }
+
+        stop() {
+            this.isPolling = false;
+            if (this.pollTimeout) {
+                clearTimeout(this.pollTimeout);
+            }
+            console.log('⏹️ Stopping HTTP polling');
+        }
+
+        async pollForNewMessages() {
+            if (!this.isPolling) return;
+
+            try {
+                // Only poll if chatId exists
+                if (!this.chatId) {
+                    this.scheduleNextPoll();
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/messages/${this.chatId}?since=${lastMessageId || ''}`, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+
+                if (response.ok) {
+                    const messages = await response.json() || [];
+                    
+                    // Process new messages
+                    messages.forEach(msg => {
+                        if (msg.id !== lastMessageId) {
+                            this.handleNewMessage(msg);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+            }
+
+            this.scheduleNextPoll();
+        }
+
+        scheduleNextPoll() {
+            if (this.isPolling) {
+                this.pollTimeout = setTimeout(() => this.pollForNewMessages(), this.pollInterval);
+            }
+        }
+
+        handleNewMessage(message) {
+            console.log('📨 New message via polling:', message);
+            
+            if (message.senderId === currentUserId) {
+                let foundTempId = null;
+                
+                document.querySelectorAll('.message.temporary').forEach(tempMsg => {
+                    const tempId = tempMsg.dataset.tempId;
+                    const contentElement = tempMsg.querySelector('.message-content span');
+                    
+                    if (contentElement && contentElement.textContent === message.content) {
+                        foundTempId = tempId;
+                    }
+                    
+                    if (!foundTempId) {
+                        const imgElement = tempMsg.querySelector('.message-content img');
+                        if (imgElement && imgElement.src) {
+                            try {
+                                const tempImages = JSON.parse(message.content);
+                                if (Array.isArray(tempImages) && tempImages.includes(imgElement.src)) {
+                                    foundTempId = tempId;
+                                }
+                            } catch {
+                                if (message.content === imgElement.src) {
+                                    foundTempId = tempId;
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                if (foundTempId) {
+                    replaceTemporaryMessage(foundTempId, message);
+                } else {
+                    addMessageToUI(message, false, false);
+                }
+            } else {
+                const shouldShowIndicator = !isUserAtBottom();
+                addMessageToUI(message, false, shouldShowIndicator);
+                
+                // Mark as read
+                this.markMessageRead([message.id]);
+            }
+        }
+
+        async markMessageRead(messageIds) {
+            try {
+                await fetch(`${API_BASE_URL}/messages/read`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        chatId: this.chatId, 
+                        messageIds 
+                    })
+                });
+            } catch (error) {
+                console.error('Failed to mark messages as read:', error);
+            }
+        }
+
+        async sendTypingStart() {
+            try {
+                await fetch(`${API_BASE_URL}/typing/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ chatId: this.chatId })
+                });
+            } catch (error) {
+                console.error('Failed to send typing start:', error);
+            }
+        }
+
+        async sendTypingEnd() {
+            try {
+                await fetch(`${API_BASE_URL}/typing/end`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ chatId: this.chatId })
+                });
+            } catch (error) {
+                console.error('Failed to send typing end:', error);
+            }
+        }
+    }
+
+    // ==================== WEBSOCKET MANAGER (Local only) ====================
     class ChatRoomWebSocketManager {
         constructor(chatId) {
             this.socket = null;
@@ -1669,14 +1836,15 @@
                 return;
             }
 
-            const wsUrl = getWebSocketUrl(token);
-            console.log('Connecting to Chat Room WebSocket:', wsUrl);
+            // Only use WebSocket for local development
+            const wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
+            console.log('🔌 Connecting to Local WebSocket:', wsUrl);
             
             try {
                 this.socket = new WebSocket(wsUrl);
                 
                 this.socket.onopen = () => {
-                    console.log('Chat Room WebSocket connected');
+                    console.log('✅ Local WebSocket connected');
                     this.isConnected = true;
                     this.reconnectAttempts = 0;
                     
@@ -1691,7 +1859,7 @@
                 this.socket.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data);
-                        console.log('📨 Chat Room WebSocket message:', data);
+                        console.log('📨 WebSocket message:', data);
                         this.handleMessage(data);
                     } catch (error) {
                         console.error('Error parsing WebSocket message:', error);
@@ -1699,7 +1867,7 @@
                 };
 
                 this.socket.onclose = (event) => {
-                    console.log('Chat Room WebSocket disconnected');
+                    console.log('❌ WebSocket disconnected');
                     this.isConnected = false;
                     
                     if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -1708,7 +1876,7 @@
                 };
 
                 this.socket.onerror = (error) => {
-                    console.error('Chat Room WebSocket error:', error);
+                    console.error('WebSocket error:', error);
                 };
 
             } catch (error) {
@@ -1719,7 +1887,11 @@
 
         reconnect() {
             if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-                console.error('Max reconnection attempts reached');
+                console.error('Max reconnection attempts reached, falling back to polling');
+                // Fall back to polling
+                if (pollManager) {
+                    pollManager.start();
+                }
                 return;
             }
             
@@ -1773,7 +1945,7 @@
         }
 
         handleNewMessage(message) {
-            console.log('🆕 New message in chat:', message);
+            console.log('🆕 New message via WebSocket:', message);
             
             if (message.senderId === currentUserId) {
                 let foundTempId = null;
@@ -2035,15 +2207,25 @@
     messageInput.addEventListener('input', () => {
         updateSendButton();
         
-        if (wsManager && chatId) {
+        if (chatId) {
             if (typingTimer) {
                 clearTimeout(typingTimer);
             } else {
-                wsManager.sendTypingStart();
+                // Send typing start
+                if (USE_POLLING && pollManager) {
+                    pollManager.sendTypingStart();
+                } else if (wsManager) {
+                    wsManager.sendTypingStart();
+                }
             }
             
             typingTimer = setTimeout(() => {
-                wsManager.sendTypingEnd();
+                // Send typing end
+                if (USE_POLLING && pollManager) {
+                    pollManager.sendTypingEnd();
+                } else if (wsManager) {
+                    wsManager.sendTypingEnd();
+                }
                 typingTimer = null;
             }, 2000);
         }
@@ -2054,9 +2236,13 @@
     });
 
     messageInput.addEventListener('blur', () => {
-        if (wsManager && typingTimer) {
+        if (typingTimer) {
             clearTimeout(typingTimer);
-            wsManager.sendTypingEnd();
+            if (USE_POLLING && pollManager) {
+                pollManager.sendTypingEnd();
+            } else if (wsManager) {
+                wsManager.sendTypingEnd();
+            }
             typingTimer = null;
         }
     });
@@ -2275,9 +2461,13 @@
             return;
         }
 
-        if (wsManager && typingTimer) {
+        if (typingTimer) {
             clearTimeout(typingTimer);
-            wsManager.sendTypingEnd();
+            if (USE_POLLING && pollManager) {
+                pollManager.sendTypingEnd();
+            } else if (wsManager) {
+                wsManager.sendTypingEnd();
+            }
             typingTimer = null;
         }
 
@@ -2501,8 +2691,14 @@
                         const data = await createRes.json();
                         chatId = data.id;
                         
-                        wsManager = new ChatRoomWebSocketManager(chatId);
-                        setTimeout(() => wsManager.connect(), 500);
+                        // Initialize connection manager based on environment
+                        if (USE_POLLING) {
+                            pollManager = new HttpPollingManager(chatId);
+                            setTimeout(() => pollManager.start(), 1000);
+                        } else {
+                            wsManager = new ChatRoomWebSocketManager(chatId);
+                            setTimeout(() => wsManager.connect(), 500);
+                        }
                     }
                 } catch (err) {
                     console.error('Failed to create chat:', err);
@@ -2518,9 +2714,15 @@
                     if (!res.ok) throw new Error(`Failed to load messages: ${res.status}`);
                     messages = await res.json() || [];
                     
-                    if (!wsManager) {
-                        wsManager = new ChatRoomWebSocketManager(chatId);
-                        setTimeout(() => wsManager.connect(), 500);
+                    // Initialize connection manager based on environment
+                    if (!pollManager && !wsManager) {
+                        if (USE_POLLING) {
+                            pollManager = new HttpPollingManager(chatId);
+                            setTimeout(() => pollManager.start(), 1000);
+                        } else {
+                            wsManager = new ChatRoomWebSocketManager(chatId);
+                            setTimeout(() => wsManager.connect(), 500);
+                        }
                     }
                 } catch (err) {
                     console.error('Messages load error:', err);
@@ -2544,8 +2746,27 @@
 
             scrollToBottom();
             
-            if (wsManager) {
-                wsManager.markAllMessagesRead();
+            // Mark all messages as read
+            const unreadMessages = messages
+                .filter(msg => msg.senderId !== currentUserId && !msg.isRead)
+                .map(msg => msg.id);
+            
+            if (unreadMessages.length > 0) {
+                try {
+                    await fetch(`${API_BASE_URL}/messages/read`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            chatId, 
+                            messageIds: unreadMessages 
+                        })
+                    });
+                } catch (err) {
+                    console.error('Failed to mark messages as read:', err);
+                }
             }
         } catch (error) {
             console.error('Load messages error:', error);
@@ -2580,11 +2801,23 @@
             updateSendButton();
         });
 
-        setInterval(() => {
-            if (!wsManager || !wsManager.isConnected) {
-                loadMessages();
-            }
-        }, 30000);
+        // Periodic refresh for polling
+        if (USE_POLLING) {
+            setInterval(() => {
+                if (pollManager && chatId) {
+                    // Poll manager handles its own polling
+                } else if (!chatId) {
+                    // Try to reload chat if chatId is not set
+                    loadMessages();
+                }
+            }, 30000);
+        } else {
+            setInterval(() => {
+                if (!wsManager || !wsManager.isConnected) {
+                    loadMessages();
+                }
+            }, 30000);
+        }
         
         perfMark('app-init-end');
         perfMeasure('app-init-duration', 'app-init-start', 'app-init-end');
@@ -2594,6 +2827,9 @@
     window.addEventListener('beforeunload', () => {
         if (wsManager) {
             wsManager.disconnect();
+        }
+        if (pollManager) {
+            pollManager.stop();
         }
         if (typingTimer) {
             clearTimeout(typingTimer);
@@ -2611,5 +2847,6 @@
 </script>
 </body>
 </html>
+
 
 
