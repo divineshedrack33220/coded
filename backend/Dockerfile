@@ -5,18 +5,18 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# If your go.mod is in the root
-COPY go.mod go.sum ./
-# OR if it's in a backend subdirectory (as your previous tree showed):
-# COPY backend/go.mod backend/go.sum ./
+# Copy go mod files from the correct location
+# Based on your tree output, go.mod is in the backend folder
+COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
-# Copy the source code - adjust path as needed
-COPY . .
-# OR if code is in backend folder:
-# COPY backend/ .
+# Copy all backend source code
+COPY backend/ .
 
+# Run tidy to ensure dependencies are clean
 RUN go mod tidy
+
+# Build the application - pointing to main.go in current dir (which is backend/)
 RUN CGO_ENABLED=0 GOOS=linux go build -o main ./main.go
 
 # Final stage
@@ -27,19 +27,26 @@ RUN adduser -D -g '' appuser
 
 WORKDIR /app
 
+# Copy the binary from builder
 COPY --from=builder /app/main .
 
-# Adjust frontend path based on your structure
-# If frontend is in root:
-COPY frontend /frontend 2>/dev/null || true
-# OR if frontend is elsewhere, adjust the path
+# IMPORTANT FIX: Copy frontend from the correct location in build context
+# The frontend folder is at the same level as backend in your repo
+COPY frontend /frontend
 
-RUN if [ -d "/frontend" ]; then ln -s /frontend /app/../frontend; fi
+# Create the symlink that your app expects (../frontend)
+RUN ln -sf /frontend /app/../frontend
+
+# Ensure the symlink works and set permissions
+RUN chown -R appuser:appuser /app && \
+    chown -R appuser:appuser /frontend
 
 USER appuser
 
 ENV PORT=8080
 ENV GIN_MODE=release
+ENV MONGODB_URI=mongodb://localhost:27017/coded
+ENV JWT_SECRET=change-this-in-production
 
 EXPOSE 8080
 
