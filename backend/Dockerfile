@@ -1,30 +1,35 @@
-# Build stage
+# ===== Builder Stage =====
 FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Copy go mod files (no backend/ prefix anymore)
+# Copy backend modules
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy backend source (current directory)
+# Copy backend source
 COPY . .
 
-RUN go mod tidy
-RUN CGO_ENABLED=0 GOOS=linux go build -o main main.go
+# Build binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main main.go
 
-# Final stage
+
+# ===== Runtime Stage =====
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
-RUN adduser -D -g '' appuser
+
+RUN adduser -D appuser
 
 WORKDIR /app
 
-# Copy binary
+# Copy backend binary
 COPY --from=builder /app/main .
+
+# ✅ COPY FRONTEND INTO CONTAINER (VERY IMPORTANT ⭐)
+COPY ../frontend ./frontend
 
 USER appuser
 
