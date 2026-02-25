@@ -55,7 +55,7 @@ func main() {
 	// FRONTEND STATIC FILES (IMPORTANT FOR YOUR STRUCTURE)
 	// ====================================================
 
-	frontendPath := "../frontend"
+	frontendPath := "frontend"
 
 	// Assets
 	router.Static("/asset", frontendPath+"/asset")
@@ -165,3 +165,4 @@ func main() {
 
 	log.Println("👋 Server stopped")
 }
+
