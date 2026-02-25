@@ -1,13 +1,18 @@
-# Build stage - use Go 1.24
+# Build stage
 FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache git
 
 WORKDIR /app
 
+# Copy go mod files
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Tidy up dependencies (this fixes the current error)
+RUN go mod tidy
+
+# Copy source code
 COPY . .
 
 # Build the application
@@ -21,13 +26,19 @@ RUN adduser -D -g '' appuser
 
 WORKDIR /app
 
+# Copy binary
 COPY --from=builder /app/main .
 
 # Copy frontend if it exists
 COPY --from=builder /app/frontend /frontend 2>/dev/null || true
 
 # Create symlink for frontend if it exists
-RUN if [ -d "/frontend" ]; then ln -sf /frontend /app/../frontend; fi
+RUN if [ -d "/frontend" ]; then \
+        ln -sf /frontend /app/../frontend; \
+    else \
+        echo "Warning: No frontend directory found" && \
+        mkdir -p /app/../frontend; \
+    fi
 
 USER appuser
 
