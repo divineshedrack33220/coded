@@ -1,0 +1,28 @@
+# render.yaml
+services:
+  - type: web
+    name: coded-backend
+    runtime: go
+    repo: https://github.com/divineshedrack33220/coded
+    plan: free
+    region: oregon
+    buildCommand: go build -o main ./backend
+    startCommand: ./main
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: GIN_MODE
+        value: release
+      - key: MONGODB_URI
+        sync: false  # You'll set this in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true  # Render will generate a random value
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+
+  - type: mongodb
+    name: coded-mongodb
+    plan: free
+    region: oregon
