@@ -5,15 +5,15 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Copy go mod files
+# Copy go mod files first
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Tidy up dependencies (this fixes the current error)
-RUN go mod tidy
-
-# Copy source code
+# COPY SOURCE CODE BEFORE go mod tidy
 COPY . .
+
+# Now run tidy (it can see your actual code)
+RUN go mod tidy
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
@@ -32,11 +32,10 @@ COPY --from=builder /app/main .
 # Copy frontend if it exists
 COPY --from=builder /app/frontend /frontend 2>/dev/null || true
 
-# Create symlink for frontend if it exists
+# Create symlink for frontend
 RUN if [ -d "/frontend" ]; then \
         ln -sf /frontend /app/../frontend; \
     else \
-        echo "Warning: No frontend directory found" && \
         mkdir -p /app/../frontend; \
     fi
 
