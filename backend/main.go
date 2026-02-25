@@ -51,54 +51,44 @@ func main() {
 
 	router := routes.SetupRouter()
 
-	// ====================================================
-	// FRONTEND STATIC FILES (IMPORTANT FOR YOUR STRUCTURE)
-	// ====================================================
+	// ===== FRONTEND STATIC FILES =====
 
-	frontendPath := "frontend"
+frontendPath := "frontend"
 
-	// Assets
-	router.Static("/asset", frontendPath+"/asset")
-	router.Static("/css", frontendPath+"/css")
-	router.Static("/js", frontendPath+"/js")
+// Serve assets
+router.Static("/asset", frontendPath+"/asset")
+router.Static("/css", frontendPath+"/css")
+router.Static("/js", frontendPath+"/js")
 
-	// Root page
-	router.GET("/", func(c *gin.Context) {
+// Root page
+router.GET("/", func(c *gin.Context) {
 
-		indexFile := frontendPath + "/index.html"
+	indexFile := frontendPath + "/index.html"
 
-		if _, err := os.Stat(indexFile); err == nil {
-			c.File(indexFile)
-			return
-		}
+	if _, err := os.Stat(indexFile); err == nil {
+		c.File(indexFile)
+		return
+	}
 
-		c.JSON(404, gin.H{
-			"error": "Frontend index.html not found",
-		})
+	c.JSON(404, gin.H{
+		"error": "Frontend index.html not found",
 	})
+})
 
-	// SPA fallback routing
-	router.NoRoute(func(c *gin.Context) {
+// SPA fallback routing
+router.NoRoute(func(c *gin.Context) {
 
-		path := c.Request.URL.Path
+	indexFile := frontendPath + "/index.html"
 
-		if len(path) >= 4 && path[:4] == "/api" {
-			c.JSON(404, gin.H{
-				"error": "API endpoint not found",
-				"path":  path,
-			})
-			return
-		}
+	if _, err := os.Stat(indexFile); err == nil {
+		c.File(indexFile)
+		return
+	}
 
-		if _, err := os.Stat(frontendPath + "/index.html"); err == nil {
-			c.File(frontendPath + "/index.html")
-			return
-		}
-
-		c.JSON(404, gin.H{
-			"error": "Page not found",
-		})
+	c.JSON(404, gin.H{
+		"error": "Page not found",
 	})
+})
 
 	// ===== HEALTH CHECK =====
 	router.GET("/health", func(c *gin.Context) {
@@ -165,4 +155,5 @@ func main() {
 
 	log.Println("👋 Server stopped")
 }
+
 
