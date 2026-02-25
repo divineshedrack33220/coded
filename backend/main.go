@@ -20,28 +20,16 @@ import (
 func main() {
 	log.Println("🚀 Starting Coded Backend Server...")
 
-	// ===== REQUIRED ENV VARIABLES =====
+	// ===== ENV CHECK =====
 	if os.Getenv("JWT_SECRET") == "" || os.Getenv("MONGODB_URI") == "" {
-		log.Fatal("❌ JWT_SECRET and MONGODB_URI must be set in Render Environment Variables")
+		log.Fatal("❌ Missing required environment variables")
 	}
 
-	// ===== CONNECT DATABASE =====
+	// ===== DATABASE CONNECT =====
 	log.Println("🔌 Connecting to MongoDB...")
 
-	var dbErr error
-	for i := 1; i <= 3; i++ {
-		if err := database.ConnectDB(); err != nil {
-			dbErr = err
-			log.Printf("❌ MongoDB connection attempt %d failed: %v", i, err)
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		dbErr = nil
-		break
-	}
-
-	if dbErr != nil {
-		log.Fatal("❌ MongoDB connection failed:", dbErr)
+	if err := database.ConnectDB(); err != nil {
+		log.Fatal("❌ MongoDB connection failed:", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -54,27 +42,42 @@ func main() {
 	log.Println("✅ MongoDB connected")
 
 	// ===== GIN MODE =====
-	if os.Getenv("GIN_MODE") == "release" {
-		gin.SetMode(gin.ReleaseMode)
-	}
+	gin.SetMode(gin.ReleaseMode)
 
 	router := routes.SetupRouter()
 
-	// ===== SERVE FRONTEND STATIC FILES =====
-	// IMPORTANT: Your repo must contain frontend/index.html
+	// ==============================
+	// FRONTEND STATIC FILE SERVING
+	// ==============================
 
+	// Serve assets folder
 	router.Static("/assets", "./frontend/assets")
+	router.Static("/css", "./frontend/css")
+	router.Static("/js", "./frontend/js")
 
+	// Root page → index.html
 	router.GET("/", func(c *gin.Context) {
 		c.File("./frontend/index.html")
 	})
 
-	// SPA fallback
+	// SPA fallback routing
 	router.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+
+		if len(path) >= 4 && path[:4] == "/api" {
+			c.JSON(404, gin.H{
+				"error":   "API endpoint not found",
+				"path":    path,
+			})
+			return
+		}
+
 		c.File("./frontend/index.html")
 	})
 
-	// ===== HEALTH ROUTES =====
+	// ==============================
+	// HEALTH ROUTES
+	// ==============================
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -83,7 +86,9 @@ func main() {
 		})
 	})
 
-	// ===== WEBSOCKET =====
+	// ==============================
+	// WEBSOCKET
+	// ==============================
 
 	wsManager := websocket.NewManager()
 	go wsManager.Start()
@@ -94,7 +99,9 @@ func main() {
 		websocket.WebSocketHandler(wsManager)(c.Writer, c.Request)
 	})
 
-	// ===== SERVER START =====
+	// ==============================
+	// SERVER CONFIG
+	// ==============================
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -115,10 +122,13 @@ func main() {
 		}
 	}()
 
-	// ===== GRACEFUL SHUTDOWN =====
+	// ==============================
+	// GRACEFUL SHUTDOWN
+	// ==============================
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
 	<-quit
 
 	log.Println("🛑 Shutting down server...")
