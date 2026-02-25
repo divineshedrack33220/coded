@@ -1,6 +1,6 @@
 module coded
 
-go 1.23.5
+go 1.23
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
