@@ -5,18 +5,18 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Copy go mod files first
+# Copy go mod files
 COPY go.mod go.sum ./
 RUN go mod download
 
-# COPY SOURCE CODE BEFORE go mod tidy
+# Copy source code
 COPY . .
 
-# Now run tidy (it can see your actual code)
+# Run tidy
 RUN go mod tidy
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+# Build ONLY main.go (exclude generate_vapid.go)
+RUN CGO_ENABLED=0 GOOS=linux go build -o main ./main.go
 
 # Final stage
 FROM alpine:latest
@@ -37,6 +37,7 @@ RUN if [ -d "/frontend" ]; then \
         ln -sf /frontend /app/../frontend; \
     else \
         mkdir -p /app/../frontend; \
+        echo "Warning: No frontend directory found - API only mode"; \
     fi
 
 USER appuser
@@ -44,7 +45,7 @@ USER appuser
 ENV PORT=8080
 ENV GIN_MODE=release
 ENV MONGODB_URI=mongodb://localhost:27017
-ENV JWT_SECRET=your-secret-key-change-this-in-production
+ENV JWT_SECRET=change-this-in-production
 
 EXPOSE 8080
 
