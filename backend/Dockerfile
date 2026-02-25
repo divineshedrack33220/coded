@@ -5,12 +5,12 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Copy backend modules
-COPY go.mod go.sum ./
+# Copy backend module files
+COPY backend/go.mod backend/go.sum ./ 
 RUN go mod download
 
 # Copy backend source
-COPY . .
+COPY backend/ .
 
 # Build binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main main.go
@@ -20,7 +20,6 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main main.go
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
-
 RUN adduser -D appuser
 
 WORKDIR /app
@@ -28,8 +27,8 @@ WORKDIR /app
 # Copy backend binary
 COPY --from=builder /app/main .
 
-# ✅ COPY FRONTEND INTO CONTAINER (VERY IMPORTANT ⭐)
-COPY ../frontend ./frontend
+# Copy frontend folder (IMPORTANT ⭐)
+COPY frontend ./frontend
 
 USER appuser
 
