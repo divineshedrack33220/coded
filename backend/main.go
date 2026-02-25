@@ -21,14 +21,14 @@ func main() {
 	log.Println("🚀 Starting Coded Backend Server...")
 
 	// ===== REQUIRED ENV VARIABLES =====
-	jwt := os.Getenv("JWT_SECRET")
-	mongo := os.Getenv("MONGODB_URI")
+	jwtSecret := os.Getenv("JWT_SECRET")
+	mongoURI := os.Getenv("MONGODB_URI")
 
-	if jwt == "" || mongo == "" {
+	if jwtSecret == "" || mongoURI == "" {
 		log.Fatal("❌ JWT_SECRET and MONGODB_URI must be set in Render Environment Variables")
 	}
 
-	// ===== CONNECT TO MONGODB WITH RETRY =====
+	// ===== CONNECT TO DATABASE =====
 	log.Println("🔌 Connecting to MongoDB...")
 
 	var dbErr error
@@ -49,7 +49,7 @@ func main() {
 
 	log.Println("✅ MongoDB connected successfully")
 
-	// Ping DB
+	// Ping database
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -71,7 +71,7 @@ func main() {
 	// ===== ROUTER =====
 	router := routes.SetupRouter()
 
-	// Health check (IMPORTANT for Render)
+	// Health route
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "Coded Backend Running 🚀",
@@ -110,7 +110,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start server
 	go func() {
 		log.Printf("🌐 Server running on port %s", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
