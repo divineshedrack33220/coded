@@ -5,11 +5,11 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# If go.mod is in the current directory (not in backend folder)
+# Copy go mod files
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy all source code (assuming it's in current dir)
+# Copy all source code
 COPY . .
 
 RUN go mod tidy
@@ -23,16 +23,20 @@ RUN adduser -D -g '' appuser
 
 WORKDIR /app
 
+# Copy binary
 COPY --from=builder /app/main .
 
-# If frontend folder exists at same level
-COPY frontend /frontend 2>/dev/null || echo "No frontend folder found"
+# Handle frontend properly - using RUN commands instead of COPY with echo
+RUN mkdir -p /frontend
+COPY frontend /frontend/ 2>/dev/null || true
 
-RUN if [ -d "/frontend" ]; then \
+# Check if frontend files were copied and create symlink
+RUN if [ -f "/frontend/index.html" ] || [ -d "/frontend/css" ]; then \
+        echo "✅ Frontend files found, creating symlink"; \
         ln -sf /frontend /app/../frontend; \
     else \
+        echo "⚠️  No frontend files - running in API-only mode"; \
         mkdir -p /app/../frontend; \
-        echo "Warning: No frontend - API only mode"; \
     fi
 
 USER appuser
