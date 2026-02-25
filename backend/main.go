@@ -18,67 +18,89 @@ import (
 )
 
 func main() {
-	log.Println("🚀 Starting Coded Backend Server...")
+
+	log.Println("🚀 Starting Coded Backend Server")
 
 	// ===== ENV CHECK =====
-	if os.Getenv("JWT_SECRET") == "" || os.Getenv("MONGODB_URI") == "" {
-		log.Fatal("❌ Missing required environment variables")
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("JWT_SECRET is required")
 	}
 
-	// ===== DATABASE CONNECT =====
-	log.Println("🔌 Connecting to MongoDB...")
+	if os.Getenv("MONGODB_URI") == "" {
+		log.Fatal("MONGODB_URI is required")
+	}
+
+	// ===== DATABASE CONNECTION =====
+	log.Println("🔌 Connecting MongoDB...")
 
 	if err := database.ConnectDB(); err != nil {
-		log.Fatal("❌ MongoDB connection failed:", err)
+		log.Fatal(err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := database.Client.Ping(ctx, nil); err != nil {
-		log.Fatal("❌ MongoDB ping failed:", err)
+		log.Fatal("MongoDB ping failed:", err)
 	}
 
-	log.Println("✅ MongoDB connected")
+	log.Println("✅ MongoDB Connected")
 
-	// ===== GIN MODE =====
+	// ===== GIN CONFIG =====
 	gin.SetMode(gin.ReleaseMode)
 
 	router := routes.SetupRouter()
 
-	// ==============================
-	// FRONTEND STATIC FILE SERVING
-	// ==============================
+	// ====================================================
+	// FRONTEND STATIC FILES (IMPORTANT FOR YOUR STRUCTURE)
+	// ====================================================
 
-	// Serve assets folder
-	router.Static("/assets", "./frontend/assets")
-	router.Static("/css", "./frontend/css")
-	router.Static("/js", "./frontend/js")
+	frontendPath := "../frontend"
 
-	// Root page → index.html
+	// Assets
+	router.Static("/asset", frontendPath+"/asset")
+	router.Static("/css", frontendPath+"/css")
+	router.Static("/js", frontendPath+"/js")
+
+	// Root page
 	router.GET("/", func(c *gin.Context) {
-		c.File("./frontend/index.html")
+
+		indexFile := frontendPath + "/index.html"
+
+		if _, err := os.Stat(indexFile); err == nil {
+			c.File(indexFile)
+			return
+		}
+
+		c.JSON(404, gin.H{
+			"error": "Frontend index.html not found",
+		})
 	})
 
 	// SPA fallback routing
 	router.NoRoute(func(c *gin.Context) {
+
 		path := c.Request.URL.Path
 
 		if len(path) >= 4 && path[:4] == "/api" {
 			c.JSON(404, gin.H{
-				"error":   "API endpoint not found",
-				"path":    path,
+				"error": "API endpoint not found",
+				"path":  path,
 			})
 			return
 		}
 
-		c.File("./frontend/index.html")
+		if _, err := os.Stat(frontendPath + "/index.html"); err == nil {
+			c.File(frontendPath + "/index.html")
+			return
+		}
+
+		c.JSON(404, gin.H{
+			"error": "Page not found",
+		})
 	})
 
-	// ==============================
-	// HEALTH ROUTES
-	// ==============================
-
+	// ===== HEALTH CHECK =====
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "Coded Backend Running 🚀",
@@ -86,10 +108,7 @@ func main() {
 		})
 	})
 
-	// ==============================
-	// WEBSOCKET
-	// ==============================
-
+	// ===== WEBSOCKET =====
 	wsManager := websocket.NewManager()
 	go wsManager.Start()
 
@@ -99,10 +118,7 @@ func main() {
 		websocket.WebSocketHandler(wsManager)(c.Writer, c.Request)
 	})
 
-	// ==============================
-	// SERVER CONFIG
-	// ==============================
-
+	// ===== SERVER CONFIG =====
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -116,28 +132,35 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("🌐 Server running on port %s", port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Println("🌐 Server running on port", port)
+
+		if err := server.ListenAndServe(); err != nil &&
+			err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
 	}()
 
-	// ==============================
-	// GRACEFUL SHUTDOWN
-	// ==============================
-
+	// ===== GRACEFUL SHUTDOWN =====
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	signal.Notify(quit,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
 
 	<-quit
 
 	log.Println("🛑 Shutting down server...")
 
-	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	ctxShutdown, cancelShutdown := context.WithTimeout(
+		context.Background(),
+		10*time.Second,
+	)
+
 	defer cancelShutdown()
 
 	if err := server.Shutdown(ctxShutdown); err != nil {
-		log.Println("❌ Shutdown error:", err)
+		log.Println("Shutdown error:", err)
 	}
 
 	log.Println("👋 Server stopped")
