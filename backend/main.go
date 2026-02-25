@@ -21,14 +21,11 @@ func main() {
 	log.Println("🚀 Starting Coded Backend Server...")
 
 	// ===== REQUIRED ENV VARIABLES =====
-	jwtSecret := os.Getenv("JWT_SECRET")
-	mongoURI := os.Getenv("MONGODB_URI")
-
-	if jwtSecret == "" || mongoURI == "" {
+	if os.Getenv("JWT_SECRET") == "" || os.Getenv("MONGODB_URI") == "" {
 		log.Fatal("❌ JWT_SECRET and MONGODB_URI must be set in Render Environment Variables")
 	}
 
-	// ===== CONNECT TO DATABASE =====
+	// ===== CONNECT DATABASE =====
 	log.Println("🔌 Connecting to MongoDB...")
 
 	var dbErr error
@@ -44,12 +41,9 @@ func main() {
 	}
 
 	if dbErr != nil {
-		log.Fatal("❌ Failed to connect to MongoDB:", dbErr)
+		log.Fatal("❌ MongoDB connection failed:", dbErr)
 	}
 
-	log.Println("✅ MongoDB connected successfully")
-
-	// Ping database
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -57,34 +51,40 @@ func main() {
 		log.Fatal("❌ MongoDB ping failed:", err)
 	}
 
-	log.Println("✅ MongoDB ping successful")
+	log.Println("✅ MongoDB connected")
 
 	// ===== GIN MODE =====
 	if os.Getenv("GIN_MODE") == "release" {
 		gin.SetMode(gin.ReleaseMode)
-		log.Println("⚙️ Running in RELEASE mode")
-	} else {
-		gin.SetMode(gin.DebugMode)
-		log.Println("⚙️ Running in DEBUG mode")
 	}
 
-	// ===== ROUTER =====
 	router := routes.SetupRouter()
 
-	// Health route
+	// ===== SERVE FRONTEND STATIC FILES =====
+	// IMPORTANT: Your repo must contain frontend/index.html
+
+	router.Static("/assets", "./frontend/assets")
+
 	router.GET("/", func(c *gin.Context) {
+		c.File("./frontend/index.html")
+	})
+
+	// SPA fallback
+	router.NoRoute(func(c *gin.Context) {
+		c.File("./frontend/index.html")
+	})
+
+	// ===== HEALTH ROUTES =====
+
+	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "Coded Backend Running 🚀",
 			"service": "healthy",
 		})
 	})
 
-	router.GET("/health", func(c *gin.Context) {
-		c.String(200, "OK")
-	})
-
 	// ===== WEBSOCKET =====
-	log.Println("🔌 Initializing WebSocket manager...")
+
 	wsManager := websocket.NewManager()
 	go wsManager.Start()
 
@@ -94,9 +94,8 @@ func main() {
 		websocket.WebSocketHandler(wsManager)(c.Writer, c.Request)
 	})
 
-	log.Println("✅ WebSocket endpoint: /ws")
+	// ===== SERVER START =====
 
-	// ===== SERVER CONFIG =====
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -107,31 +106,29 @@ func main() {
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
 	}
 
 	go func() {
 		log.Printf("🌐 Server running on port %s", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("❌ Server error:", err)
+			log.Fatal(err)
 		}
 	}()
 
-	log.Println("✅ Server is ready and accepting connections")
-
 	// ===== GRACEFUL SHUTDOWN =====
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("🛑 Shutting down server...")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
+	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
 
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Println("❌ Forced shutdown:", err)
+	if err := server.Shutdown(ctxShutdown); err != nil {
+		log.Println("❌ Shutdown error:", err)
 	}
 
-	log.Println("👋 Server stopped gracefully")
+	log.Println("👋 Server stopped")
 }
