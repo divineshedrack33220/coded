@@ -1,5 +1,5 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
+# Build stage - use a newer Go version
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git
@@ -31,19 +31,18 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /app/main .
 
-# Create a directory for frontend files (if you want to include them)
-# Note: Your code expects frontend at ../frontend, but in Docker it's better to adjust
-# or copy frontend files to the expected location
-RUN mkdir -p /frontend
+# Copy frontend if it exists (adjust path as needed)
+# If frontend is in the same repo:
+COPY --from=builder /app/frontend /frontend
 
-# If you have frontend files, copy them (adjust path as needed)
-# COPY --from=builder /app/../frontend /frontend
+# Create symlink for frontend (since code expects ../frontend)
+RUN ln -s /frontend /app/../frontend || true
 
 # Set environment variables (can be overridden at runtime)
 ENV PORT=8080
 ENV GIN_MODE=release
-ENV MONGODB_URI=mongodb://mongodb:27017
-ENV JWT_SECRET=your-secret-key-change-this
+ENV MONGODB_URI=mongodb://localhost:27017
+ENV JWT_SECRET=your-secret-key-change-this-in-production
 
 # Use non-root user
 USER appuser
