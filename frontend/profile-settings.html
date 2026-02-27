@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Profile | InstaPing</title>
+  <!-- theme-color updated to #00AEEF (primary brand color) -->
+  <meta name="theme-color" content="#00AEEF">
+  <style>
+    /* === LIGHT MODE COLOR SCHEME (copied from live-requests page) === */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #FFFFFF;
+      color: #000000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      min-height: 100vh;
+      padding: 80px 20px 20px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: #FFFFFF;
+      z-index: 1000;
+      border-bottom: 1px solid #E0E0E0;
+    }
+
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .back-btn svg {
+      width: 24px;
+      height: 24px;
+      fill: #000000;
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #000000;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      text-align: center;
+      color: #000000;
+    }
+
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      color: #666666;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    input[type="text"], input[type="url"], textarea, .status-select {
+      width: 100%;
+      padding: 12px 16px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      color: #000000;
+      font-size: 16px;
+    }
+
+    input:focus, textarea:focus, .status-select:focus {
+      outline: none;
+      border-color: #00AEEF;
+      box-shadow: 0 0 0 2px rgba(0,174,239,0.2);
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .checkbox-group, .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .checkbox-group label, .radio-group label {
+      display: flex;
+      align-items: center;
+      font-size: 16px;
+      color: #000000;
+      cursor: pointer;
+    }
+
+    .checkbox-group input, .radio-group input {
+      margin-right: 12px;
+      accent-color: #00AEEF;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: #00AEEF;
+      color: #000000;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      margin-top: 24px;
+    }
+
+    .btn:hover {
+      background: #0099d0;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      color: #000000;
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 174, 239, 0.2);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 200;
+      max-width: 90%;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,174,239,0.3);
+    }
+
+    #toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(-8px);
+    }
+
+    /* New styles for avatar upload */
+    .avatar-preview {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      overflow: hidden;
+      margin: 16px auto;
+      background: #F0F0F0;
+      position: relative;
+      border: 2px solid #00AEEF;
+      box-shadow: 0 0 0 4px rgba(0,174,239,0.1);
+    }
+
+    .avatar-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+    }
+
+    .file-input-wrapper input[type="file"] {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .file-input-label {
+      display: block;
+      padding: 12px 16px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      color: #000000;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .file-input-label:hover {
+      background: #E0E0E0;
+    }
+
+    /* Photo Upload Styles */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 32px 0;
+      width: 100%;
+    }
+
+    .photo-slot {
+      aspect-ratio: 1;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .photo-slot:hover {
+      border-color: #00AEEF;
+    }
+
+    .photo-slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .photo-slot .placeholder {
+      color: #8E8E8E;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .photo-slot input[type="file"] {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .remove-photo {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #000000;
+      cursor: pointer;
+      border: 1px solid #E0E0E0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <button class="back-btn" id="back-btn" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </button>
+    <div class="header-title">Edit Profile</div>
+  </header>
+
+  <h1>Edit Profile</h1>
+
+  <!-- Avatar preview -->
+  <div class="avatar-preview" id="avatar-preview">
+    <img src="" alt="Avatar preview" id="preview-img">
+  </div>
+
+  <form id="profile-form" enctype="multipart/form-data">
+    <div class="form-group">
+      <label>Change Avatar (select image file)</label>
+      <div class="file-input-wrapper">
+        <input type="file" id="avatar-file" name="avatar" accept="image/*">
+        <div class="file-input-label">Choose image...</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" placeholder="Your name" required>
+    </div>
+
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="@username" required>
+    </div>
+
+    <div class="form-group">
+      <label for="bio">Bio</label>
+      <textarea id="bio" name="bio" placeholder="Tell others about yourself..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Gender</label>
+      <div class="radio-group">
+        <label><input type="radio" name="gender" value="male"> Male</label>
+        <label><input type="radio" name="gender" value="female"> Female</label>
+        <label><input type="radio" name="gender" value="other"> Other</label>
+        <label><input type="radio" name="gender" value=""> Prefer not to say</label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Interested In</label>
+      <div class="checkbox-group">
+        <label><input type="checkbox" name="interestedIn" value="men"> Men</label>
+        <label><input type="checkbox" name="interestedIn" value="women"> Women</label>
+        <label><input type="checkbox" name="interestedIn" value="everyone"> Everyone</label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Additional Photos</label>
+      <div class="photo-grid">
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="0">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="1">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="2">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="3">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="4">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="5">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+      </div>
+      <p style="font-size: 12px; color: #8E8E8E; margin-top: 8px;">You can add or replace up to 6 photos.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="status">Status</label>
+      <select id="status" name="status" class="status-select">
+        <option value="">No status</option>
+        <option value="available">Available</option>
+        <option value="busy">Busy</option>
+      </select>
+    </div>
+
+    <button type="submit" class="btn" id="save-btn">Save Changes</button>
+  </form>
+
+  <div id="toast"></div>
+
+  <script>
+    const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
+    const API_BASE_URL = 'http://www.instaping.org/api'; // ADDED
+
+    (function() {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const toast = document.getElementById('toast');
+      const form = document.getElementById('profile-form');
+      const saveBtn = document.getElementById('save-btn');
+      const backBtn = document.getElementById('back-btn');
+      const avatarPreview = document.getElementById('preview-img');
+      const avatarFileInput = document.getElementById('avatar-file');
+      const fileLabel = document.querySelector('.file-input-label');
+      let uploadedPhotos = [];
+
+      function showToast(message, duration = 2500) {
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), duration);
+      }
+
+      // Preview selected avatar image
+      avatarFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          fileLabel.textContent = file.name;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            avatarPreview.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+        } else {
+          fileLabel.textContent = 'Choose image...';
+        }
+      });
+
+      // Handle photo uploads
+      const photoSlots = document.querySelectorAll('.photo-slot');
+      photoSlots.forEach(slot => {
+        const input = slot.querySelector('input[type="file"]');
+        const placeholder = slot.querySelector('.placeholder');
+
+        input.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          // Preview
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            let img = slot.querySelector('img');
+            if (!img) {
+              img = document.createElement('img');
+              slot.appendChild(img);
+            }
+            img.src = ev.target.result;
+            placeholder.style.display = 'none';
+
+            let removeBtn = slot.querySelector('.remove-photo');
+            if (!removeBtn) {
+              removeBtn = document.createElement('div');
+              removeBtn.className = 'remove-photo';
+              removeBtn.innerHTML = '×';
+              removeBtn.onclick = (ev) => {
+                ev.stopPropagation();
+                input.value = '';
+                if (img) img.remove();
+                placeholder.style.display = 'flex';
+                removeBtn.remove();
+                const index = parseInt(input.dataset.index);
+                uploadedPhotos[index] = undefined;
+              };
+              slot.appendChild(removeBtn);
+            }
+          };
+          reader.readAsDataURL(file);
+
+          // Upload to Cloudinary
+          const formData = new FormData();
+          formData.append('photo', file);
+
+          try {
+            const res = await fetch(`${API_BASE_URL}/upload-photo`, { // UPDATED
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+              body: formData
+            });
+
+            if (!res.ok) throw new Error('Upload failed');
+
+            const data = await res.json();
+            const index = parseInt(input.dataset.index);
+            uploadedPhotos[index] = data.url;
+            showToast('Photo uploaded');
+          } catch (err) {
+            showToast('Photo upload failed');
+            console.error(err);
+          }
+        });
+      });
+
+      // Fetch current profile
+      async function loadProfile() {
+        try {
+          const res = await fetch(`${API_BASE_URL}/me`, { // UPDATED
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!res.ok) throw new Error('Failed to load profile');
+          const data = await res.json();
+
+          document.getElementById('name').value = data.name || '';
+          document.getElementById('username').value = data.username || '';
+          document.getElementById('bio').value = data.bio || '';
+          avatarPreview.src = data.avatar || fallbackImage;
+
+          // Gender
+          if (data.gender) {
+            const radio = document.querySelector(`input[name="gender"][value="${data.gender}"]`);
+            if (radio) radio.checked = true;
+          }
+
+          // Interested In
+          if (data.interestedIn && Array.isArray(data.interestedIn)) {
+            data.interestedIn.forEach(val => {
+              const cb = document.querySelector(`input[name="interestedIn"][value="${val}"]`);
+              if (cb) cb.checked = true;
+            });
+          }
+
+          // Photos
+          uploadedPhotos = data.photos || [];
+          photoSlots.forEach((slot, index) => {
+            const placeholder = slot.querySelector('.placeholder');
+            if (uploadedPhotos[index]) {
+              const img = document.createElement('img');
+              img.src = uploadedPhotos[index];
+              slot.appendChild(img);
+              placeholder.style.display = 'none';
+
+              const removeBtn = document.createElement('div');
+              removeBtn.className = 'remove-photo';
+              removeBtn.innerHTML = '×';
+              removeBtn.onclick = (ev) => {
+                ev.stopPropagation();
+                uploadedPhotos[index] = undefined;
+                img.remove();
+                placeholder.style.display = 'flex';
+                removeBtn.remove();
+              };
+              slot.appendChild(removeBtn);
+            }
+          });
+
+          // Status
+          if (data.status) {
+            document.getElementById('status').value = data.status;
+          }
+        } catch (err) {
+          console.error(err);
+          showToast('Failed to load profile');
+        }
+      }
+
+      // Save changes
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        saveBtn.disabled = true;
+        saveBtn.classList.add('loading');
+        saveBtn.textContent = 'Saving...';
+
+        const formData = new FormData();
+
+        // Text fields
+        formData.append('name', document.getElementById('name').value.trim());
+        formData.append('username', document.getElementById('username').value.trim().replace(/^@/, ''));
+        formData.append('bio', document.getElementById('bio').value.trim());
+
+        const gender = document.querySelector('input[name="gender"]:checked')?.value;
+        if (gender) formData.append('gender', gender);
+
+        const interestedIn = Array.from(document.querySelectorAll('input[name="interestedIn"]:checked'))
+          .map(cb => cb.value);
+        if (interestedIn.length > 0) {
+          interestedIn.forEach(val => formData.append('interestedIn', val));
+        }
+
+        const photos = uploadedPhotos.filter(url => url);
+        if (photos.length > 0) {
+          photos.forEach(url => formData.append('photos', url));
+        }
+
+        const status = document.getElementById('status').value;
+        if (status) formData.append('status', status);
+
+        // Avatar file if selected
+        if (avatarFileInput.files.length > 0) {
+          formData.append('avatar', avatarFileInput.files[0]);
+        }
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/me`, { // UPDATED
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+          });
+
+          if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || 'Failed to update profile');
+          }
+
+          showToast('Profile updated successfully!');
+          setTimeout(() => window.history.back(), 1500);
+        } catch (err) {
+          console.error(err);
+          showToast(err.message || 'Error updating profile');
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.classList.remove('loading');
+          saveBtn.textContent = 'Save Changes';
+        }
+      });
+
+      backBtn.addEventListener('click', () => window.history.back());
+
+      loadProfile();
+    })();
+  </script>
+</body>
+</html>

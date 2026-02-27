@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InstaPing | Sign Up</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="asset/logo.jpeg">
+  <!-- Add Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- theme-color updated to #00AEEF (primary brand color) -->
+  <meta name="theme-color" content="#00AEEF">
+
+  <style>
+    /* === LIGHT MODE COLOR SCHEME (matching the rest of the app) === */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #FFFFFF;
+      color: #000000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      padding: 40px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    /* Logo container with blue circle behind */
+    .logo {
+      width: 150px;
+      height: 100px;
+      margin-bottom: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .logo::before {
+      content: '';
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      background: #00AEEF; /* primary blue */
+      border-radius: 50%;
+      z-index: 0;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .logo img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      position: relative;
+      z-index: 1;
+    }
+
+    .progress {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 40px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .progress.visible {
+      opacity: 1;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background: #DDDDDD;
+      border-radius: 50%;
+    }
+
+    .dot.active {
+      background: #00AEEF; /* primary color */
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 16px;
+      color: #000000;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #666666;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .form-wrapper {
+      width: 100%;
+      margin-bottom: 24px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .email-input,
+    .password-input,
+    .text-input,
+    .date-input {
+      width: 100%;
+      height: 52px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      color: #000000;
+      font-size: 18px;
+      padding: 0 16px;
+      outline: none;
+    }
+
+    .email-input:focus,
+    .password-input:focus,
+    .text-input:focus,
+    .date-input:focus {
+      border-color: #00AEEF;
+      box-shadow: 0 0 0 2px rgba(0,174,239,0.2);
+    }
+
+    .email-input::placeholder,
+    .password-input::placeholder,
+    .text-input::placeholder {
+      color: #8E8E8E;
+    }
+
+    .error-text,
+    .warning {
+      color: #FF453A;
+      font-size: 14px;
+      margin-top: 8px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .error-text.visible,
+    .warning.visible {
+      opacity: 1;
+    }
+
+    .signup-btn,
+    .primary-btn {
+      width: 100%;
+      height: 52px;
+      background: #00AEEF;
+      color: #000000;
+      font-size: 17px;
+      font-weight: 600;
+      border: none;
+      border-radius: 26px;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 0.3s ease, transform 0.1s ease;
+      margin-bottom: 16px;
+    }
+
+    .signup-btn.enabled,
+    .primary-btn.enabled {
+      opacity: 1;
+    }
+
+    .signup-btn.enabled:active,
+    .primary-btn.enabled:active {
+      transform: scale(0.98);
+    }
+
+    .divider {
+      width: 100%;
+      text-align: center;
+      margin: 24px 0;
+      position: relative;
+      color: #8E8E8E;
+      font-size: 14px;
+    }
+
+    .divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #E0E0E0;
+    }
+
+    .divider span {
+      background: #FFFFFF;
+      padding: 0 16px;
+    }
+
+    .google-btn {
+      width: 100%;
+      height: 52px;
+      background: #FFFFFF;
+      color: #000000;
+      font-size: 17px;
+      font-weight: 600;
+      border: 1px solid #E0E0E0;
+      border-radius: 26px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: background 0.3s ease;
+      margin-bottom: 16px;
+    }
+
+    .google-btn:hover {
+      background: #F5F5F5;
+    }
+
+    .google-btn img {
+      width: 20px;
+      height: 20px;
+    }
+
+    .login-link {
+      margin-top: 24px;
+      font-size: 15px;
+      color: #000000;
+      text-align: center;
+    }
+
+    .login-link a {
+      color: #00AEEF;
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    .terms {
+      margin-top: auto;
+      padding-top: 60px;
+      font-size: 12px;
+      color: #8E8E8E;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .toggle-group {
+      display: flex;
+      width: 100%;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .toggle-btn {
+      flex: 1;
+      height: 52px;
+      background: #F5F5F5;
+      color: #000000;
+      border: 1px solid #E0E0E0;
+      border-radius: 26px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .toggle-btn.selected {
+      background: #00AEEF;
+      color: #000000;
+      border-color: #00AEEF;
+    }
+
+    .secondary-btn {
+      width: 100%;
+      height: 52px;
+      background: transparent;
+      color: #000000;
+      font-size: 17px;
+      font-weight: 600;
+      border: 1px solid #E0E0E0;
+      border-radius: 26px;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.2s;
+    }
+
+    .secondary-btn:hover {
+      background: #F5F5F5;
+    }
+
+    .screen {
+      width: 100%;
+      display: none;
+      flex-direction: column;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      color: #000000;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 174, 239, 0.2);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 200;
+      max-width: 90%;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,174,239,0.3);
+    }
+
+    #toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(-8px);
+    }
+
+    /* Photo Upload Styles */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 32px 0;
+      width: 100%;
+    }
+
+    .photo-slot {
+      aspect-ratio: 1;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .photo-slot:hover {
+      border-color: #00AEEF;
+    }
+
+    .photo-slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .photo-slot .placeholder {
+      color: #8E8E8E;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .photo-slot input[type="file"] {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .remove-photo {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      background: #FFFFFF;
+      border: 1px solid #E0E0E0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #000000;
+      cursor: pointer;
+    }
+
+    /* Updated Back Button Style - Matching Post Page */
+    .back-btn {
+      position: absolute;
+      top: 20px;
+      left: 24px;
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      display: none; /* Hidden by default, shown when needed */
+    }
+
+    .back-btn svg {
+      width: 24px;
+      height: 24px;
+      fill: #000000;
+    }
+
+    /* Google Sign-In container */
+    #gsi-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* Hide Google's default loading */
+    #g_id_onload {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <img src="asset/logo.png" alt="Coded Logo">
+    </div>
+    <!-- Updated Back Button with SVG Icon -->
+    <button id="global-back" class="back-btn" aria-label="Back">
+      <svg viewBox="0 0 24 24">
+        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+      </svg>
+    </button>
+
+    <div class="progress" id="progress">
+      <div class="dot" id="dot1"></div>
+      <div class="dot" id="dot2"></div>
+      <div class="dot" id="dot3"></div>
+      <div class="dot" id="dot4"></div>
+      <div class="dot" id="dot5"></div>
+      <div class="dot" id="dot6"></div>
+      <div class="dot" id="dot7"></div>
+    </div>
+
+    <!-- Screen 1: Signup (Email + Password) -->
+    <div class="screen active" id="screen1">
+      <div class="title">Create your account</div>
+
+      <div class="form-wrapper">
+        <div class="input-wrapper">
+          <input type="email" class="email-input" placeholder="Email address" id="email" autocomplete="email" autofocus />
+          <div class="error-text" id="email-error">Please enter a valid email address</div>
+        </div>
+
+        <div class="input-wrapper">
+          <input type="password" class="password-input" placeholder="Password" id="password" autocomplete="new-password" />
+          <div class="error-text" id="password-error"></div>
+        </div>
+      </div>
+
+      <button class="signup-btn" id="signup" disabled>Sign Up</button>
+
+      <div class="divider"><span>or</span></div>
+
+      <!-- Google Sign-In Container -->
+      <div id="gsi-container"></div>
+      
+      <!-- Fallback Google Button -->
+      <button class="google-btn" id="google-fallback" style="display: none;">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Google_Favicon_2025.svg/250px-Google_Favicon_2025.svg.png" alt="Google G Logo">
+        Continue with Google
+      </button>
+
+      <div class="login-link">
+        Already have an account? <a href="login.html">Log in</a>
+      </div>
+
+      <div class="terms">
+        By continuing, you agree to our Terms & Privacy Policy
+      </div>
+    </div>
+
+    <!-- Screen 2: Name & DOB -->
+    <div class="screen" id="screen2">
+      <div class="title">What should we call you?</div>
+      <div class="subtitle">This helps others identify you</div>
+
+      <div class="input-wrapper">
+        <input type="text" class="text-input" placeholder="First name" id="name">
+      </div>
+
+      <div class="input-wrapper">
+        <input type="date" class="date-input" id="dob" max="2007-12-27">
+      </div>
+
+      <div class="warning" id="age-warning">You must be 18 or older to use this app</div>
+
+      <button class="primary-btn" id="next1" disabled>Next</button>
+    </div>
+
+    <!-- Screen 3: Gender & Interests -->
+    <div class="screen" id="screen3">
+      <div class="title">Who are you?</div>
+
+      <div class="toggle-group">
+        <button class="toggle-btn selected" data-value="male">Male</button>
+        <button class="toggle-btn" data-value="female">Female</button>
+        <button class="toggle-btn" data-value="other">Other</button>
+      </div>
+
+      <div class="title">Who are you interested in?</div>
+
+      <div class="toggle-group">
+        <button class="toggle-btn selected" data-value="men">Men</button>
+        <button class="toggle-btn" data-value="women">Women</button>
+        <button class="toggle-btn" data-value="everyone">Everyone</button>
+      </div>
+
+      <button class="primary-btn enabled" id="next2">Next</button>
+    </div>
+
+    <!-- Screen 4: Location -->
+    <div class="screen" id="screen4">
+      <div class="title">Let's find people near you</div>
+      <div class="subtitle">We use your location to show nearby requests. You can adjust this later.</div>
+
+      <button class="primary-btn enabled" id="allow-location">Allow location</button>
+      <button class="secondary-btn" id="skip-location">Skip</button>
+    </div>
+
+    <!-- Screen 5: Photos -->
+    <div class="screen" id="screen5">
+      <div class="title">Add photos</div>
+      <div class="subtitle">Add at least one photo to get started</div>
+
+      <div class="photo-grid">
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="0">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="1">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="2">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="3">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="4">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+        <div class="photo-slot">
+          <input type="file" accept="image/*" data-index="5">
+          <div class="placeholder">+ Add photo</div>
+        </div>
+      </div>
+
+      <button class="primary-btn" id="next4" disabled>Next</button>
+    </div>
+
+    <!-- Screen 6: Bio -->
+    <div class="screen" id="screen6">
+      <div class="title">Describe yourself in a sentence</div>
+
+      <div class="input-wrapper">
+        <textarea class="text-input" style="height: 100px; resize: none;" placeholder="Coffee lover. Explorer. Always up for a hangout." id="bio" maxlength="150"></textarea>
+      </div>
+
+      <button class="primary-btn enabled" id="next5">Next</button>
+    </div>
+
+    <!-- Screen 7: Default Status -->
+    <div class="screen" id="screen7">
+      <div class="title">Ready to connect</div>
+
+      <div class="toggle-group" style="margin: 40px 0;">
+        <button class="toggle-btn selected" data-status="available">Available</button>
+        <button class="toggle-btn" data-status="busy">Busy</button>
+      </div>
+
+      <button class="primary-btn enabled" id="go-live">Go Live</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const API_BASE_URL = 'http://www.instaping.org/api';
+    
+    function showToast(message, duration = 2000) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toast.hideTimeout);
+      toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
+    }
+
+    const screens = [
+      document.getElementById('screen1'),
+      document.getElementById('screen2'),
+      document.getElementById('screen3'),
+      document.getElementById('screen4'),
+      document.getElementById('screen5'),
+      document.getElementById('screen6'),
+      document.getElementById('screen7')
+    ];
+    const dots = [
+      document.getElementById('dot1'),
+      document.getElementById('dot2'),
+      document.getElementById('dot3'),
+      document.getElementById('dot4'),
+      document.getElementById('dot5'),
+      document.getElementById('dot6'),
+      document.getElementById('dot7')
+    ];
+    const progress = document.getElementById('progress');
+    const backBtn = document.getElementById('global-back');
+    let currentScreen = 0;
+
+    function showScreen(index) {
+      if (index < 0) index = 0;
+      if (index >= screens.length) index = screens.length - 1;
+      screens.forEach((s, i) => s.classList.toggle('active', i === index));
+      dots.forEach((d, i) => d.classList.toggle('active', i === index));
+      if (index > 0) {
+        progress.classList.add('visible');
+        backBtn.style.display = 'flex'; // Show back button on screens > 0
+      } else {
+        progress.classList.remove('visible');
+        backBtn.style.display = 'none'; // Hide back button on first screen
+      }
+      currentScreen = index;
+    }
+
+    // Updated back button functionality
+    backBtn.addEventListener('click', () => {
+      if (currentScreen > 0) {
+        currentScreen--;
+        showScreen(currentScreen);
+      } else {
+        // If on first screen, go back to previous page
+        if (document.referrer && document.referrer.includes(window.location.host)) {
+          window.history.back();
+        } else {
+          window.location.href = 'login.html';
+        }
+      }
+    });
+
+    // Data storage
+    let email = '';
+    let password = '';
+    let name = '';
+    let birthDate = '';
+    let gender = 'male';
+    let interestedIn = 'men';
+    let latitude = null;
+    let longitude = null;
+    let bio = '';
+    let status = 'available';
+    let token = null;
+    let userId = null;
+    let uploadedPhotos = [];
+    let isGoogleSignup = false;
+
+    // Screen 1: Signup
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const signupBtn = document.getElementById('signup');
+    const emailError = document.getElementById('email-error');
+    const passwordError = document.getElementById('password-error');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const googleFallbackBtn = document.getElementById('google-fallback');
+
+    function validateSignup() {
+      email = emailInput.value.trim();
+      password = passwordInput.value;
+
+      let valid = true;
+
+      if (email === '' || !emailRegex.test(email)) {
+        emailError.textContent = 'Please enter a valid email address';
+        emailError.classList.add('visible');
+        valid = false;
+      } else {
+        emailError.classList.remove('visible');
+      }
+
+      if (password === '' || password.length < 6) {
+        passwordError.textContent = password === '' ? 'Please enter a password' : 'Password must be at least 6 characters';
+        passwordError.classList.add('visible');
+        valid = false;
+      } else {
+        passwordError.classList.remove('visible');
+      }
+
+      signupBtn.disabled = !valid;
+      signupBtn.classList.toggle('enabled', valid);
+      return valid;
+    }
+
+    emailInput.addEventListener('input', validateSignup);
+    passwordInput.addEventListener('input', validateSignup);
+
+    // Handle email/password signup
+    signupBtn.addEventListener('click', async () => {
+      if (!validateSignup()) return;
+
+      signupBtn.disabled = true;
+      signupBtn.textContent = 'Signing Up...';
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Signup failed');
+        }
+
+        token = data.token;
+        userId = data.userId;
+        localStorage.setItem('token', token);
+        localStorage.setItem('userId', userId);
+        isGoogleSignup = false;
+
+        showToast('Account created!');
+        currentScreen++;
+        showScreen(currentScreen);
+
+      } catch (err) {
+        showToast(err.message || 'Signup failed');
+        console.error(err);
+      } finally {
+        signupBtn.disabled = false;
+        signupBtn.textContent = 'Sign Up';
+      }
+    });
+
+    // Initialize Google Sign-In
+    function initializeGoogleSignIn() {
+      try {
+        // Check if Google Identity Services is loaded
+        if (typeof google === 'undefined' || !google.accounts) {
+          console.warn('Google Identity Services not loaded, showing fallback button');
+          googleFallbackBtn.style.display = 'flex';
+          googleFallbackBtn.addEventListener('click', () => {
+            showToast('Google Sign-In requires Google Identity Services. Please refresh the page.');
+          });
+          return;
+        }
+
+        // Configure Google Sign-In
+        const clientId = '12239007321-kcvn3r3asgef4ic341tnvbn2bpt8i9qg.apps.googleusercontent.com';
+        
+        google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleSignIn,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          context: 'signup',
+          ux_mode: 'popup'
+        });
+
+        // Render the button
+        google.accounts.id.renderButton(
+          document.getElementById('gsi-container'),
+          {
+            theme: 'filled_black',
+            size: 'large',
+            width: '100%',
+            text: 'continue_with',
+            shape: 'pill',
+            logo_alignment: 'left'
+          }
+        );
+
+      } catch (error) {
+        console.error('Failed to initialize Google Sign-In:', error);
+        googleFallbackBtn.style.display = 'flex';
+        googleFallbackBtn.addEventListener('click', () => {
+          showToast('Google Sign-In is currently unavailable. Please try again later.');
+        });
+      }
+    }
+
+    // Handle Google Sign-In response
+    async function handleGoogleSignIn(response) {
+      try {
+        console.log('Google Sign-In response received');
+        showToast('Creating your account...', 3000);
+        
+        // Send the Google credential to our backend
+        const backendResponse = await fetch(`${API_BASE_URL}/google-auth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: response.credential })
+        });
+
+        const result = await backendResponse.json();
+
+        if (!backendResponse.ok) {
+          throw new Error(result.error || 'Google authentication failed');
+        }
+
+        // Store the token and user info
+        token = result.token;
+        userId = result.userId;
+        localStorage.setItem('token', token);
+        localStorage.setItem('userId', userId);
+        isGoogleSignup = true;
+
+        showToast('Google account created!');
+        
+        // If new Google user, proceed to onboarding
+        if (result.isNewUser || !result.hasCompletedOnboarding) {
+          // Auto-fill name from Google if available
+          if (result.name && result.name !== result.username) {
+            document.getElementById('name').value = result.name;
+          }
+          currentScreen = 1; // Start from name screen
+          showScreen(currentScreen);
+        } else {
+          // Existing user with completed onboarding
+          showToast('Welcome back!');
+          setTimeout(() => {
+            window.location.href = 'live-requests.html';
+          }, 800);
+        }
+
+      } catch (error) {
+        console.error('Google authentication error:', error);
+        showToast('Google authentication failed: ' + error.message);
+        
+        // Revoke Google auth on error
+        if (google && google.accounts && google.accounts.id) {
+          google.accounts.id.revoke(response.credential);
+        }
+      }
+    }
+
+    // Initialize Google Sign-In when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeGoogleSignIn();
+    });
+
+    // Screen 2: Name & DOB
+    const nameInput = document.getElementById('name');
+    const dobInput = document.getElementById('dob');
+    const next1 = document.getElementById('next1');
+    const ageWarning = document.getElementById('age-warning');
+
+    function validateScreen2() {
+      name = nameInput.value.trim();
+      birthDate = dobInput.value;
+
+      if (name === '' || birthDate === '') {
+        next1.disabled = true;
+        next1.classList.remove('enabled');
+        return false;
+      }
+
+      const bd = new Date(birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - bd.getFullYear();
+      const m = today.getMonth() - bd.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+
+      if (age < 18) {
+        ageWarning.classList.add('visible');
+        next1.disabled = true;
+        next1.classList.remove('enabled');
+        return false;
+      } else {
+        ageWarning.classList.remove('visible');
+        next1.disabled = false;
+        next1.classList.add('enabled');
+        return true;
+      }
+    }
+
+    nameInput.addEventListener('input', validateScreen2);
+    dobInput.addEventListener('input', validateScreen2);
+
+    next1.addEventListener('click', () => {
+      if (validateScreen2()) {
+        currentScreen++;
+        showScreen(currentScreen);
+      }
+    });
+
+    // Screen 3: Gender & Interests
+    document.querySelectorAll('#screen3 .toggle-group').forEach((group, idx) => {
+      group.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          group.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          if (idx === 0) gender = btn.dataset.value;
+          else interestedIn = btn.dataset.value;
+        });
+      });
+    });
+
+    document.getElementById('next2').addEventListener('click', () => {
+      currentScreen++;
+      showScreen(currentScreen);
+    });
+
+    // Screen 4: Location
+    document.getElementById('allow-location').addEventListener('click', () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            latitude = pos.coords.latitude;
+            longitude = pos.coords.longitude;
+            showToast('Location saved');
+            currentScreen++;
+            showScreen(currentScreen);
+          },
+          () => {
+            showToast('Location denied');
+            currentScreen++;
+            showScreen(currentScreen);
+          }
+        );
+      } else {
+        currentScreen++;
+        showScreen(currentScreen);
+      }
+    });
+
+    document.getElementById('skip-location').addEventListener('click', () => {
+      currentScreen++;
+      showScreen(currentScreen);
+    });
+
+    // Screen 5: Photos
+    const photoSlots = document.querySelectorAll('.photo-slot');
+    const next4 = document.getElementById('next4');
+
+    function validatePhotos() {
+      const hasAtLeastOnePhoto = uploadedPhotos.some(photo => photo !== undefined);
+      next4.disabled = !hasAtLeastOnePhoto;
+      next4.classList.toggle('enabled', hasAtLeastOnePhoto);
+    }
+
+    photoSlots.forEach(slot => {
+      const input = slot.querySelector('input[type="file"]');
+      const placeholder = slot.querySelector('.placeholder');
+      let img = null;
+
+      input.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Preview
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          if (!img) {
+            img = document.createElement('img');
+            slot.appendChild(img);
+          }
+          img.src = ev.target.result;
+          placeholder.style.display = 'none';
+
+          let removeBtn = slot.querySelector('.remove-photo');
+          if (!removeBtn) {
+            removeBtn = document.createElement('div');
+            removeBtn.className = 'remove-photo';
+            removeBtn.innerHTML = '×';
+            removeBtn.onclick = (ev) => {
+              ev.stopPropagation();
+              input.value = '';
+              img.src = '';
+              img.remove();
+              placeholder.style.display = 'flex';
+              removeBtn.remove();
+              const index = parseInt(input.dataset.index);
+              uploadedPhotos[index] = undefined;
+              validatePhotos();
+            };
+            slot.appendChild(removeBtn);
+          }
+        };
+        reader.readAsDataURL(file);
+
+        // Upload to server
+        const formData = new FormData();
+        formData.append('photo', file);
+
+        try {
+          if (!token) {
+            showToast('Please sign in first');
+            return;
+          }
+
+          const res = await fetch(`${API_BASE_URL}/upload-photo`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+          });
+
+          if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'Upload failed');
+          }
+
+          const data = await res.json();
+          const index = parseInt(input.dataset.index);
+          uploadedPhotos[index] = data.url;
+          showToast('Photo uploaded');
+          validatePhotos();
+        } catch (err) {
+          showToast(err.message || 'Photo upload failed');
+          console.error(err);
+        }
+      });
+    });
+
+    document.getElementById('next4').addEventListener('click', () => {
+      currentScreen++;
+      showScreen(currentScreen);
+    });
+
+    // Screen 6: Bio
+    const bioInput = document.getElementById('bio');
+    bioInput.addEventListener('input', () => bio = bioInput.value.trim());
+
+    document.getElementById('next5').addEventListener('click', () => {
+      currentScreen++;
+      showScreen(currentScreen);
+    });
+
+    // Screen 7: Status
+    document.querySelectorAll('#screen7 .toggle-group').forEach(group => {
+      group.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          group.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          status = btn.dataset.status;
+        });
+      });
+    });
+
+    // Final Go Live - Complete Onboarding
+    document.getElementById('go-live').addEventListener('click', async () => {
+      if (!token) {
+        token = localStorage.getItem('token');
+        if (!token) {
+          showToast('Session expired. Please sign up again.');
+          return;
+        }
+      }
+
+      // Validate required fields for Google users
+      if (isGoogleSignup) {
+        if (!name || !gender || !interestedIn) {
+          showToast('Please complete all required fields');
+          return;
+        }
+      }
+
+      const onboardingData = {
+        name: name.trim(),
+        birthDate: birthDate ? Math.floor(new Date(birthDate).getTime() / 1000) : undefined,
+        gender: gender,
+        interestedIn: interestedIn === 'everyone' ? ['men', 'women'] : [interestedIn],
+        bio: bio.trim(),
+        status: status,
+        photos: uploadedPhotos.filter(url => url)
+      };
+
+      if (latitude !== null && longitude !== null) {
+        onboardingData.latitude = latitude;
+        onboardingData.longitude = longitude;
+      }
+
+      const goLiveBtn = document.getElementById('go-live');
+      goLiveBtn.disabled = true;
+      goLiveBtn.textContent = 'Completing...';
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/me`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(onboardingData)
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to complete onboarding');
+        }
+
+        showToast('Welcome to InstaPing!');
+        setTimeout(() => {
+          window.location.href = 'live-requests.html';
+        }, 1000);
+
+      } catch (err) {
+        showToast(err.message || 'Failed to save profile');
+        console.error('Onboarding error:', err);
+      } finally {
+        goLiveBtn.disabled = false;
+        goLiveBtn.textContent = 'Go Live';
+      }
+    });
+
+    // Initial validation
+    validateSignup();
+    validateScreen2();
+    validatePhotos();
+
+    // Initial screen setup
+    showScreen(currentScreen);
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('Service Worker registered', reg))
+        .catch(err => console.error('Service Worker registration failed', err));
+    }
+  </script>
+</body>
+</html>
