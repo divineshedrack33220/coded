@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile | InstaPing</title>
+  <link rel="icon" type="image/png" href="asset/logo.jpeg">
+  <!-- theme-color updated to #00AEEF (primary brand color) -->
+  <meta name="theme-color" content="#00AEEF">
+
+  <style>
+    /* === LIGHT MODE COLOR SCHEME (copied from live-requests page) === */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #FFFFFF;
+      color: #000000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: #FFFFFF;
+      z-index: 1000;
+      border-bottom: 1px solid #E0E0E0;
+    }
+
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .back-btn svg {
+      width: 24px;
+      height: 24px;
+      fill: #000000;
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+      text-align: center;
+      flex: 1;
+      color: #000000;
+    }
+
+    .header-right {
+      opacity: 0.8;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .header-right svg {
+      fill: #000000;
+    }
+
+    .profile-container {
+      padding: 80px 20px 20px;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative; /* for shimmer overlay */
+    }
+
+    .profile-hero {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .avatar-wrapper {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+
+    .avatar {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #00AEEF; /* primary color */
+      box-shadow: 0 0 0 4px rgba(0,174,239,0.1);
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .avatar:hover {
+      transform: scale(1.05);
+    }
+
+    .username {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #000000;
+    }
+
+    .handle {
+      font-size: 16px;
+      color: #8E8E8E;
+      margin-bottom: 16px;
+    }
+
+    .bio-section {
+      margin-bottom: 32px;
+      position: relative;
+    }
+
+    .bio {
+      font-size: 16px;
+      line-height: 1.5;
+      color: #666666;
+      margin-bottom: 12px;
+    }
+
+    .edit-bio {
+      position: absolute;
+      top: 0;
+      right: 0;
+      font-size: 20px;
+      color: #000000;
+      opacity: 0.7;
+      cursor: pointer;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .btn-primary {
+      background: #00AEEF; /* primary color */
+      color: #000000;
+    }
+
+    .btn-primary:hover {
+      background: #0099d0;
+    }
+
+    .btn-secondary {
+      background: #F5F5F5;
+      color: #000000;
+      border: 1px solid #E0E0E0;
+    }
+
+    .btn-secondary:hover {
+      background: #E0E0E0;
+    }
+
+    .tabs {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #E0E0E0;
+    }
+
+    .tab {
+      padding: 12px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #8E8E8E;
+      cursor: pointer;
+      position: relative;
+      flex: 1;
+      text-align: center;
+    }
+
+    .tab.active {
+      color: #00AEEF; /* primary color */
+    }
+
+    .tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60%;
+      height: 2px;
+      background: #00AEEF; /* primary color */
+      border-radius: 2px;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+
+    .post-card {
+      aspect-ratio: 1 / 1;
+      background: #F5F5F5;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+      border: 1px solid #E0E0E0;
+    }
+
+    .post-card:hover {
+      transform: scale(1.03);
+    }
+
+    .post-thumbnail {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .post-overlay {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      font-size: 14px;
+      background: rgba(255, 255, 255, 0.9);
+      color: #000000;
+      padding: 4px 8px;
+      border-radius: 12px;
+      border: 1px solid #E0E0E0;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 999;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-backdrop.active {
+      display: block;
+      opacity: 1;
+    }
+
+    .bottom-modal {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #FFFFFF;
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      padding: 20px 0;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      z-index: 1000;
+      max-height: 70vh;
+      overflow-y: auto;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    }
+
+    .bottom-modal.active {
+      transform: translateY(0);
+    }
+
+    .modal-handle {
+      width: 40px;
+      height: 4px;
+      background: #DDDDDD;
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 20px;
+      color: #000000;
+    }
+
+    .modal-option {
+      display: flex;
+      align-items: center;
+      padding: 16px 20px;
+      cursor: pointer;
+    }
+
+    .modal-option:hover {
+      background: #F5F5F5;
+    }
+
+    .modal-icon {
+      width: 24px;
+      height: 24px;
+      margin-right: 16px;
+      fill: #000000;
+    }
+
+    .modal-text {
+      font-size: 16px;
+      color: #000000;
+    }
+
+    .logout {
+      color: #FF3B30 !important;
+    }
+    .logout .modal-icon {
+      fill: #FF3B30;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #8E8E8E;
+    }
+
+    .empty-illustration {
+      font-size: 80px;
+      margin-bottom: 16px;
+      color: #CCCCCC;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      color: #000000;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 174, 239, 0.2);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 200;
+      max-width: 90%;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,174,239,0.3);
+    }
+
+    #toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(-8px);
+    }
+
+    /* Enhanced Shimmer Loading - light mode with primary tint */
+    .shimmer-wrapper {
+      position: absolute;
+      inset: 0;
+      padding: 0 20px;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+      z-index: 10;
+    }
+    
+    .shimmer-wrapper.hidden {
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    
+    /* Hero section shimmer */
+    .shimmer-hero {
+      text-align: center;
+      margin-bottom: 24px;
+      position: relative;
+    }
+    
+    .shimmer-avatar {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: #F0F0F0;
+      margin: 0 auto 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .shimmer-avatar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 174, 239, 0.1) 50%,
+        transparent 100%
+      );
+      animation: shimmer 2s infinite linear;
+    }
+    
+    .shimmer-name {
+      height: 28px;
+      width: 60%;
+      background: #F0F0F0;
+      border-radius: 8px;
+      margin: 0 auto 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .shimmer-name::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 174, 239, 0.1) 50%,
+        transparent 100%
+      );
+      animation: shimmer 2s infinite linear;
+      animation-delay: 0.1s;
+    }
+    
+    .shimmer-handle {
+      height: 18px;
+      width: 40%;
+      background: #F0F0F0;
+      border-radius: 8px;
+      margin: 0 auto;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .shimmer-handle::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 174, 239, 0.1) 50%,
+        transparent 100%
+      );
+      animation: shimmer 2s infinite linear;
+      animation-delay: 0.2s;
+    }
+    
+    /* Bio shimmer */
+    .shimmer-bio {
+      height: 60px;
+      background: #F0F0F0;
+      border-radius: 12px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .shimmer-bio::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 174, 239, 0.1) 50%,
+        transparent 100%
+      );
+      animation: shimmer 2s infinite linear;
+      animation-delay: 0.3s;
+    }
+    
+    /* Buttons shimmer */
+    .shimmer-actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    
+    .shimmer-btn {
+      flex: 1;
+      height: 48px;
+      background: #F0F0F0;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .shimmer-btn::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 174, 239, 0.1) 50%,
+        transparent 100%
+      );
+      animation: shimmer 2s infinite linear;
+    }
+    
+    .shimmer-btn:nth-child(2)::after {
+      animation-delay: 0.2s;
+    }
+    
+    /* Tabs shimmer */
+    .shimmer-tabs {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 20px;
+    }
+    
+    .shimmer-tab {
+      width: 80px;
+      height: 20px;
+      background: #F0F0F0;
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .shimmer-tab::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 174, 239, 0.1) 50%,
+        transparent 100%
+      );
+      animation: shimmer 2s infinite linear;
+      animation-delay: 0.1s;
+    }
+    
+    /* Grid cards shimmer */
+    .shimmer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    
+    .shimmer-card {
+      aspect-ratio: 1/1;
+      background: #F0F0F0;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .shimmer-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -150%;
+      width: 150%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 174, 239, 0.05) 20%,
+        rgba(0, 174, 239, 0.1) 50%,
+        rgba(0, 174, 239, 0.05) 80%,
+        transparent 100%
+      );
+      animation: shimmer 1.5s infinite linear;
+    }
+    
+    /* Stagger animation for cards */
+    .shimmer-card:nth-child(1)::before {
+      animation-delay: 0.1s;
+    }
+    
+    .shimmer-card:nth-child(2)::before {
+      animation-delay: 0.2s;
+    }
+    
+    .shimmer-card:nth-child(3)::before {
+      animation-delay: 0.3s;
+    }
+    
+    .shimmer-card:nth-child(4)::before {
+      animation-delay: 0.4s;
+    }
+    
+    .shimmer-card:nth-child(5)::before {
+      animation-delay: 0.5s;
+    }
+    
+    .shimmer-card:nth-child(6)::before {
+      animation-delay: 0.6s;
+    }
+    
+    @keyframes shimmer {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 200%;
+      }
+    }
+
+    /* Fullscreen viewer styles */
+    #fullscreen-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #FFFFFF;
+      z-index: 1500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #fullscreen-backdrop.active {
+      display: flex;
+    }
+
+    #fullscreen-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fullscreen-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    #fullscreen-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      background: rgba(0,0,0,0.1);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    #fullscreen-close svg {
+      width: 24px;
+      height: 24px;
+      fill: #000000;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <button class="back-btn" id="back-btn" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </button>
+    <div class="header-title">My Profile</div>
+    <div class="header-right" id="settings-icon">
+      <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.37-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.37 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.37 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.37-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+    </div>
+  </header>
+
+  <div class="profile-container">
+    <!-- Shimmer skeleton -->
+    <div class="shimmer-wrapper" id="shimmer">
+      <div class="shimmer-hero">
+        <div class="shimmer-avatar"></div>
+        <div class="shimmer-name"></div>
+        <div class="shimmer-handle"></div>
+      </div>
+
+      <div class="shimmer-bio"></div>
+
+      <div class="shimmer-actions">
+        <div class="shimmer-btn"></div>
+        <div class="shimmer-btn"></div>
+      </div>
+
+      <div class="shimmer-tabs">
+        <div class="shimmer-tab"></div>
+      </div>
+
+      <div class="shimmer-grid">
+        <div class="shimmer-card"></div>
+        <div class="shimmer-card"></div>
+        <div class="shimmer-card"></div>
+        <div class="shimmer-card"></div>
+        <div class="shimmer-card"></div>
+        <div class="shimmer-card"></div>
+      </div>
+    </div>
+
+    <div class="profile-hero">
+      <div class="avatar-wrapper">
+        <img class="avatar" id="avatar" src="" alt="Profile">
+      </div>
+      <div class="username" id="username">Loading...</div>
+      <div class="handle" id="handle">@loading</div>
+    </div>
+
+    <div class="bio-section">
+      <div class="edit-bio" id="edit-bio">✎</div>
+      <p class="bio" id="bio">Loading bio...</p>
+    </div>
+
+    <div class="actions">
+      <div class="btn btn-primary" id="edit-profile-btn">Edit Profile</div>
+      <div class="btn btn-secondary" id="share-profile-btn">Share Profile</div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <div class="tab active">Media</div>
+    </div>
+
+    <div class="content-grid" id="content-grid">
+      <!-- Content will be loaded here -->
+    </div>
+
+    <div class="empty-state" id="empty-state" style="display: none;">
+      <div class="empty-illustration">📷</div>
+      <h3 id="empty-title">No media yet</h3>
+      <p id="empty-message">Upload your first photo in edit profile</p>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="modal-backdrop"></div>
+  <div class="bottom-modal" id="settings-modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Settings</div>
+
+    <!-- Referral Option -->
+    <div class="modal-option" id="referral-option">
+      <svg class="modal-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v4h4v2h-4v4h-2v-4H8v-2h4V7z"/></svg>
+      <div class="modal-text">Refer a Friend</div>
+    </div>
+
+    <!-- Logout -->
+    <div class="modal-option logout" id="logout-btn">
+      <svg class="modal-icon" viewBox="0 0 24 24"><path d="M17 8l-1.41 1.41L18.17 12H9v2h9.17l-2.58 2.58L17 18l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+      <div class="modal-text">Logout</div>
+    </div>
+  </div>
+
+  <!-- Referral Modal -->
+  <div class="modal-backdrop" id="referral-backdrop"></div>
+  <div class="bottom-modal" id="referral-modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Refer a Friend</div>
+
+    <div style="padding: 0 20px; text-align: center; margin-bottom: 24px;">
+      <p style="font-size: 16px; margin-bottom: 8px;">Invite your friends to join InstaPing!</p>
+      <p style="font-size: 14px; color: #8E8E8E;">You both get bonus connections when they sign up.</p>
+    </div>
+
+    <div style="padding: 0 20px; margin-bottom: 24px;">
+      <div id="referral-link" style="background: #F5F5F5; padding: 12px; border-radius: 12px; word-break: break-all; font-size: 14px; margin-bottom: 12px; border: 1px solid #E0E0E0; color: #000000;"></div>
+      <div style="display: flex; gap: 12px;">
+        <button id="copy-link-btn" class="btn btn-primary" style="flex: 1;">Copy Link</button>
+        <button id="share-referral-btn" class="btn btn-secondary" style="flex: 1;">Share</button>
+      </div>
+    </div>
+
+    <div style="padding: 0 20px;">
+      <p style="font-size: 14px; color: #8E8E8E; text-align: center;">Your referral code: <span id="referral-code" style="color: #00AEEF; font-weight: 600;">Loading...</span></p>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Fullscreen viewer -->
+  <div id="fullscreen-backdrop">
+    <div id="fullscreen-close">
+      <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </div>
+    <div id="fullscreen-container"></div>
+  </div>
+
+  <script>
+    const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
+    const API_BASE_URL = 'https://instaping.org/api'; // ADDED
+
+    function showToast(message, duration = 2000) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toast.hideTimeout);
+      toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
+    }
+
+    (function() {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('Please log in first.');
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+      }
+
+      const avatarEl = document.getElementById('avatar');
+      const usernameEl = document.getElementById('username');
+      const handleEl = document.getElementById('handle');
+      const bioEl = document.getElementById('bio');
+      const contentGrid = document.getElementById('content-grid');
+      const emptyState = document.getElementById('empty-state');
+      const emptyTitle = document.getElementById('empty-title');
+      const emptyMessage = document.getElementById('empty-message');
+      const tabs = document.querySelectorAll('.tab');
+      const shimmer = document.getElementById('shimmer');
+      let currentTab = 0;
+      let profileData = null;
+
+      // Fullscreen viewer elements
+      const fullscreenBackdrop = document.getElementById('fullscreen-backdrop');
+      const fullscreenContainer = document.getElementById('fullscreen-container');
+      const fullscreenClose = document.getElementById('fullscreen-close');
+      let currentIndex = 0;
+      let startX = 0;
+      let isSwiping = false;
+
+      async function loadProfile() {
+        // Show shimmer
+        shimmer.classList.remove('hidden');
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/me`, { // UPDATED
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!res.ok) throw new Error('Failed to load profile');
+          const data = await res.json();
+
+          profileData = data;
+
+          let avatarSrc = data.avatar || fallbackImage;
+          if (!data.avatar && data.photos && data.photos.length > 0) {
+            avatarSrc = data.photos[0];
+          }
+          avatarEl.src = avatarSrc;
+          avatarEl.onerror = () => { avatarEl.src = fallbackImage; };
+
+          usernameEl.textContent = data.name || 'User';
+          handleEl.textContent = `@${data.username || 'user'}`;
+          bioEl.textContent = data.bio || 'No bio yet';
+
+          // Load referral link
+          loadReferralLink();
+
+          // Hide shimmer and load content
+          shimmer.classList.add('hidden');
+          loadContent();
+        } catch (err) {
+          console.error('Profile load error:', err);
+          showToast('Failed to load profile');
+          avatarEl.src = fallbackImage;
+          usernameEl.textContent = 'Error';
+          bioEl.textContent = 'Failed to load profile';
+          shimmer.classList.add('hidden');
+        }
+      }
+
+      async function loadReferralLink() {
+        try {
+          const res = await fetch(`${API_BASE_URL}/me/referral`, { // UPDATED
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!res.ok) throw new Error('Failed to load referral');
+          const { referralCode, referralUrl } = await res.json();
+
+          document.getElementById('referral-code').textContent = referralCode;
+          document.getElementById('referral-link').textContent = referralUrl;
+
+          window.referralData = {
+            url: referralUrl,
+            text: `Hey! Join me on InstaPing with my referral link: ${referralUrl}`,
+            title: 'Join InstaPing with my referral!'
+          };
+        } catch (err) {
+          console.error('Referral load error:', err);
+          showToast('Failed to load referral link');
+        }
+      }
+
+      function switchTab(index) {
+        tabs.forEach(t => t.classList.remove('active'));
+        tabs[index].classList.add('active');
+        currentTab = index;
+        loadContent();
+      }
+
+      function loadContent() {
+        contentGrid.innerHTML = '';
+        emptyState.style.display = 'none';
+
+        loadMedia();
+      }
+
+      function loadMedia() {
+        const photos = profileData.photos || [];
+        if (photos.length === 0) {
+          emptyTitle.textContent = 'No media yet';
+          emptyMessage.textContent = 'Upload your first photo in edit profile';
+          emptyState.style.display = 'block';
+          return;
+        }
+        photos.forEach((url, index) => {
+          const card = document.createElement('div');
+          card.className = 'post-card';
+          card.dataset.index = index;
+          card.innerHTML = `<img class="post-thumbnail" src="${url}" alt="Media">`;
+          card.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openFullscreen(index);
+          });
+          contentGrid.appendChild(card);
+        });
+      }
+
+      function openFullscreen(index) {
+        currentIndex = index;
+        renderFullscreenImage();
+        fullscreenBackdrop.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeFullscreen() {
+        fullscreenBackdrop.classList.remove('active');
+        fullscreenContainer.innerHTML = '';
+        document.body.style.overflow = '';
+      }
+
+      function renderFullscreenImage() {
+        const photos = profileData.photos || [];
+        if (photos.length === 0) return;
+        const url = photos[currentIndex];
+        fullscreenContainer.innerHTML = `<img class="fullscreen-img" src="${url}" alt="Fullscreen media">`;
+      }
+
+      function navigate(delta) {
+        const photos = profileData.photos || [];
+        if (photos.length === 0) return;
+        currentIndex = (currentIndex + delta + photos.length) % photos.length;
+        renderFullscreenImage();
+      }
+
+      // Touch swipe handling
+      fullscreenContainer.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        isSwiping = true;
+      }, { passive: true });
+
+      fullscreenContainer.addEventListener('touchmove', (e) => {
+        if (!isSwiping) return;
+        e.preventDefault();
+      }, { passive: false });
+
+      fullscreenContainer.addEventListener('touchend', (e) => {
+        if (!isSwiping) return;
+        isSwiping = false;
+        const endX = e.changedTouches[0].clientX;
+        const diff = startX - endX;
+        if (Math.abs(diff) > 50) { // Minimum swipe distance
+          navigate(diff > 0 ? 1 : -1);
+        }
+      });
+
+      // Close handlers
+      fullscreenClose.addEventListener('click', closeFullscreen);
+      fullscreenBackdrop.addEventListener('click', (e) => {
+        if (e.target === fullscreenBackdrop) closeFullscreen();
+      });
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => switchTab(index));
+      });
+
+      document.getElementById('edit-profile-btn').addEventListener('click', () => {
+        window.location.href = 'profile-settings.html';
+      });
+
+      document.getElementById('share-profile-btn').addEventListener('click', async () => {
+        if (!profileData || !profileData.username) {
+          showToast('Profile not loaded yet');
+          return;
+        }
+        const shareUrl = `https://instaping.org/@${profileData.username}`;
+        const shareData = {
+          title: `${profileData.name || 'User'}'s Profile on InstaPing`,
+          text: 'Check out my profile on InstaPing!',
+          url: shareUrl
+        };
+
+        try {
+          if (navigator.share && navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+          } else {
+            await navigator.clipboard.writeText(shareUrl);
+            showToast('Profile URL copied!');
+          }
+        } catch (err) {
+          showToast('Failed to share profile');
+        }
+      });
+
+      // Settings Modal
+      const settingsIcon = document.getElementById('settings-icon');
+      const modalBackdrop = document.getElementById('modal-backdrop');
+      const settingsModal = document.getElementById('settings-modal');
+
+      settingsIcon.addEventListener('click', () => {
+        modalBackdrop.classList.add('active');
+        settingsModal.classList.add('active');
+      });
+
+      modalBackdrop.addEventListener('click', () => {
+        modalBackdrop.classList.remove('active');
+        settingsModal.classList.remove('active');
+      });
+
+      // Referral Modal
+      const referralOption = document.getElementById('referral-option');
+      const referralBackdrop = document.getElementById('referral-backdrop');
+      const referralModal = document.getElementById('referral-modal');
+
+      referralOption.addEventListener('click', () => {
+        settingsModal.classList.remove('active');
+        modalBackdrop.classList.remove('active');
+        referralBackdrop.classList.add('active');
+        referralModal.classList.add('active');
+      });
+
+      referralBackdrop.addEventListener('click', () => {
+        referralBackdrop.classList.remove('active');
+        referralModal.classList.remove('active');
+      });
+
+      // Copy Link
+      document.getElementById('copy-link-btn').addEventListener('click', () => {
+        if (window.referralData?.url) {
+          navigator.clipboard.writeText(window.referralData.url);
+          showToast('Referral link copied!');
+        } else {
+          showToast('Referral link not available');
+        }
+      });
+
+      // Share Referral
+      document.getElementById('share-referral-btn').addEventListener('click', async () => {
+        if (!window.referralData) {
+          showToast('Referral data not loaded');
+          return;
+        }
+        try {
+          if (navigator.share && navigator.canShare(window.referralData)) {
+            await navigator.share(window.referralData);
+          } else {
+            await navigator.clipboard.writeText(window.referralData.url);
+            showToast('Referral link copied!');
+          }
+        } catch (err) {
+          showToast('Failed to share');
+        }
+      });
+
+      // Logout
+      document.getElementById('logout-btn').addEventListener('click', () => {
+        localStorage.removeItem('token');
+        showToast('Logged out');
+        setTimeout(() => window.location.href = 'login.html', 800);
+      });
+
+      document.getElementById('back-btn').addEventListener('click', () => {
+        window.history.back();
+      });
+
+      loadProfile();
+    })();
+  </script>
+</body>
+</html>

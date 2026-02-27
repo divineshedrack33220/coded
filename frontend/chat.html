@@ -1,0 +1,2416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>InstaPing | Chat</title>
+  <link rel="icon" type="image/png" href="asset/logo.jpeg">
+  <!-- theme-color updated to #00AEEF (primary brand color) -->
+  <meta name="theme-color" content="#00AEEF">
+
+  <style>
+    /* === LIGHT MODE COLOR SCHEME (copied from live-requests page) === */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      background: #FFFFFF;
+      color: #000000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+    }
+    
+    /* Header - light mode */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: #FFFFFF;
+      border-bottom: 1px solid #E0E0E0;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      flex-shrink: 0;
+      width: 100%;
+    }
+    
+    .header-left { 
+      display: flex; 
+      align-items: center; 
+      gap: 16px; 
+      cursor: pointer; 
+    }
+    
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .back-btn svg { 
+      width: 24px; 
+      height: 24px; 
+      fill: #000000; 
+    }
+    
+    .user-info-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .user-avatar { 
+      width: 40px; 
+      height: 40px; 
+      border-radius: 50%; 
+      overflow: hidden; 
+      background: #DDDDDD;
+      border: 2px solid #FFFFFF;
+    }
+    
+    .user-avatar img { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: cover; 
+    }
+    
+    .user-info { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 2px;
+    }
+    
+    .username { 
+      font-size: 17px; 
+      font-weight: 600; 
+      color: #000000;
+    }
+    
+    .status-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 16px;
+    }
+    
+    .typing-status {
+      font-size: 13px;
+      color: #00AEEF; /* primary color */
+      font-weight: 400;
+      display: none;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .typing-status.active {
+      display: flex;
+      animation: fadeIn 0.3s ease;
+    }
+    
+    .typing-dots {
+      display: flex;
+      gap: 3px;
+    }
+    
+    .typing-dot {
+      width: 4px;
+      height: 4px;
+      background: #00AEEF; /* primary color */
+      border-radius: 50%;
+      animation: typingBounce 1.4s infinite ease-in-out;
+    }
+    
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes typingBounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40% { transform: translateY(-6px); opacity: 1; }
+    }
+    
+    .online-status { 
+      font-size: 13px; 
+      color: #8E8E8E;
+      font-weight: 400;
+    }
+    
+    .header-right { 
+      display: flex; 
+      gap: 16px; 
+    }
+    
+    .header-btn {
+      width: 36px;
+      height: 36px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    
+    .header-btn svg { 
+      width: 20px; 
+      height: 20px; 
+      fill: #000000; 
+    }
+    
+    /* Message Area - light mode */
+    .message-area { 
+      flex: 1; 
+      overflow-y: auto; 
+      overflow-x: hidden;
+      padding: 16px;
+      padding-bottom: 100px;
+      display: flex; 
+      flex-direction: column; 
+      gap: 16px; 
+      position: relative;
+      -webkit-overflow-scrolling: touch;
+      background: #F8F8F8;
+    }
+    
+    /* Message Bubbles - light mode */
+    .message {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 20px;
+      font-size: 15px;
+      line-height: 1.4;
+      position: relative;
+      animation: fadeIn 0.3s ease;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    
+    @keyframes fadeIn { 
+      from { opacity: 0; transform: translateY(10px); } 
+      to { opacity: 1; transform: translateY(0); } 
+    }
+    
+    .incoming { 
+      align-self: flex-start; 
+      background: #FFFFFF;
+      border: 1px solid #E0E0E0;
+      border-radius: 20px 20px 20px 4px;
+      margin-left: 8px;
+      color: #000000;
+    }
+    
+    .outgoing { 
+      align-self: flex-end; 
+      background: #00AEEF; /* primary color */
+      color: #000000;
+      border-radius: 20px 20px 4px 20px;
+      margin-right: 8px;
+    }
+    
+    .message-timestamp { 
+      font-size: 11px; 
+      color: #8E8E8E; 
+      margin-top: 6px; 
+      text-align: right; 
+      font-weight: 400;
+    }
+    
+    .read-receipt { 
+      font-size: 11px; 
+      color: #666666; 
+      margin-top: 4px; 
+      text-align: right; 
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 2px;
+    }
+    
+    .system-message { 
+      text-align: center; 
+      font-size: 13px; 
+      color: #666666; 
+      margin: 20px 0; 
+      padding: 8px 16px;
+      background: #F0F0F0;
+      border-radius: 20px;
+      align-self: center;
+      font-weight: 400;
+    }
+    
+    /* Image grouping styles */
+    .image-group {
+      display: grid;
+      gap: 4px;
+      margin-top: 8px;
+      max-width: 100%;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    
+    .image-group:hover {
+      transform: scale(1.01);
+    }
+    
+    .image-group-1 { grid-template-columns: 1fr; }
+    .image-group-2 { grid-template-columns: repeat(2, 1fr); }
+    .image-group-3 { 
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-areas: 
+        "a b"
+        "c c";
+    }
+    .image-group-4 { grid-template-columns: repeat(2, 1fr); }
+    .image-group-5 { 
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-areas: 
+        "a b c"
+        "d e e";
+    }
+    .image-group-6 { 
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-areas: 
+        "a b c"
+        "d e f";
+    }
+    
+    .grouped-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 8px;
+      transition: opacity 0.2s;
+      border: 1px solid #E0E0E0;
+    }
+    
+    .grouped-image:hover {
+      opacity: 0.9;
+    }
+    
+    .image-group-3 .grouped-image:nth-child(1) { grid-area: a; }
+    .image-group-3 .grouped-image:nth-child(2) { grid-area: b; }
+    .image-group-3 .grouped-image:nth-child(3) { 
+      grid-area: c; 
+      aspect-ratio: 2/1;
+    }
+    
+    .image-group-5 .grouped-image:nth-child(1) { grid-area: a; }
+    .image-group-5 .grouped-image:nth-child(2) { grid-area: b; }
+    .image-group-5 .grouped-image:nth-child(3) { grid-area: c; }
+    .image-group-5 .grouped-image:nth-child(4) { grid-area: d; }
+    .image-group-5 .grouped-image:nth-child(5) { 
+      grid-area: e; 
+      aspect-ratio: 2/1;
+    }
+    
+    .image-group-6 .grouped-image:nth-child(1) { grid-area: a; }
+    .image-group-6 .grouped-image:nth-child(2) { grid-area: b; }
+    .image-group-6 .grouped-image:nth-child(3) { grid-area: c; }
+    .image-group-6 .grouped-image:nth-child(4) { grid-area: d; }
+    .image-group-6 .grouped-image:nth-child(5) { grid-area: e; }
+    .image-group-6 .grouped-image:nth-child(6) { grid-area: f; }
+    
+    /* Image Upload Progress */
+    .upload-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: #E0E0E0;
+      border-radius: 0 0 20px 20px;
+      overflow: hidden;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: #00AEEF; /* primary color */
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    
+    /* Image Carousel */
+    .image-carousel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #FFFFFF;
+      display: none;
+      flex-direction: column;
+      z-index: 2000;
+    }
+    
+    .image-carousel.active {
+      display: flex;
+    }
+    
+    .carousel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: #FFFFFF;
+      border-bottom: 1px solid #E0E0E0;
+      z-index: 10;
+    }
+    
+    .carousel-count {
+      font-size: 15px;
+      color: #000000;
+      font-weight: 500;
+    }
+    
+    .carousel-close {
+      width: 36px;
+      height: 36px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 20px;
+      color: #000000;
+    }
+    
+    .carousel-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #F8F8F8;
+    }
+    
+    .carousel-track {
+      display: flex;
+      height: 100%;
+      transition: transform 0.3s ease;
+    }
+    
+    .carousel-slide {
+      flex: 0 0 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .carousel-image {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    
+    .carousel-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #FFFFFF;
+      border: 1px solid #E0E0E0;
+      color: #000000;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 24px;
+      z-index: 5;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .carousel-prev {
+      left: 20px;
+    }
+    
+    .carousel-next {
+      right: 20px;
+    }
+    
+    .carousel-indicators {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px;
+      background: #FFFFFF;
+      border-top: 1px solid #E0E0E0;
+    }
+    
+    .carousel-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #DDDDDD;
+      transition: background 0.2s, transform 0.2s;
+    }
+    
+    .carousel-indicator.active {
+      background: #00AEEF; /* primary color */
+      transform: scale(1.2);
+    }
+    
+    /* New Message Indicator */
+    .new-message-indicator {
+      position: fixed;
+      bottom: 120px;
+      right: 20px;
+      background: #00AEEF; /* primary color */
+      color: #000000;
+      padding: 10px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #E0E0E0;
+      box-shadow: 0 4px 12px rgba(0,174,239,0.3);
+    }
+    
+    /* Input Bar - light mode */
+    .input-bar {
+      display: flex;
+      flex-direction: column;
+      padding: 12px 16px;
+      background: #FFFFFF;
+      border-top: 1px solid #E0E0E0;
+      position: sticky;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+    
+    .preview-area {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 8px 0;
+      max-width: 100%;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .preview-item {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      flex-shrink: 0;
+    }
+    
+    .preview-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid #E0E0E0;
+    }
+    
+    .preview-remove {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 24px;
+      height: 24px;
+      background: #FFFFFF;
+      border: 1px solid #E0E0E0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+      color: #000000;
+      font-weight: 600;
+    }
+    
+    .input-container {
+      display: flex;
+      align-items: center;
+      background: #F5F5F5;
+      border-radius: 24px;
+      padding: 8px 12px;
+      min-height: 48px;
+      border: 1px solid #E0E0E0;
+    }
+    
+    .input-icon { 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer; 
+      flex-shrink: 0;
+    }
+    
+    .input-icon svg { 
+      width: 20px; 
+      height: 20px; 
+      fill: #000000; 
+    }
+    
+    .message-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #000000;
+      font-size: 15px;
+      outline: none;
+      resize: none;
+      max-height: 100px;
+      overflow-y: auto;
+      min-height: 24px;
+      line-height: 24px;
+      font-family: inherit;
+      padding: 0 12px;
+      margin: 0;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    
+    .message-input::placeholder { 
+      color: #8E8E8E; 
+    }
+    
+    .send-btn {
+      width: 36px;
+      height: 36px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    
+    .send-btn svg { 
+      width: 20px; 
+      height: 20px; 
+      fill: #666666; 
+    }
+    
+    .send-btn.enabled {
+      background: #00AEEF; /* primary color */
+      border-color: #00AEEF;
+    }
+    
+    .send-btn.enabled svg {
+      fill: #000000;
+    }
+    
+    /* Emoji Picker - light mode */
+    .emoji-modal {
+      position: fixed;
+      bottom: 80px;
+      left: 16px;
+      right: 16px;
+      background: #FFFFFF;
+      border-radius: 20px;
+      max-height: 400px;
+      height: 400px;
+      overflow: hidden;
+      z-index: 2000;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      display: none;
+      flex-direction: column;
+      border: 1px solid #E0E0E0;
+    }
+    
+    .emoji-modal.show { 
+      display: flex; 
+    }
+    
+    .emoji-header {
+      padding: 16px;
+      border-bottom: 1px solid #E0E0E0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #FFFFFF;
+    }
+    
+    .emoji-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #000000;
+    }
+    
+    .emoji-search {
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 20px;
+      padding: 8px 16px;
+      color: #000000;
+      font-size: 14px;
+      width: 60%;
+      outline: none;
+    }
+    
+    .emoji-search::placeholder {
+      color: #8E8E8E;
+    }
+    
+    .emoji-categories {
+      display: flex;
+      padding: 0 16px;
+      border-bottom: 1px solid #E0E0E0;
+      overflow-x: auto;
+      gap: 8px;
+      flex-shrink: 0;
+      background: #FFFFFF;
+    }
+    
+    .emoji-category {
+      padding: 12px 0;
+      font-size: 24px;
+      cursor: pointer;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+      min-width: 44px;
+      text-align: center;
+    }
+    
+    .emoji-category.active {
+      opacity: 1;
+      border-bottom: 2px solid #00AEEF; /* primary color */
+    }
+    
+    .emoji-grid-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: #FFFFFF;
+    }
+    
+    .emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 12px;
+    }
+    
+    .emoji-item { 
+      font-size: 28px; 
+      cursor: pointer; 
+      text-align: center; 
+      transition: transform 0.1s; 
+      padding: 4px;
+      border-radius: 8px;
+    }
+    
+    .emoji-item:hover { 
+      background: #F5F5F5;
+      transform: scale(1.2); 
+    }
+    
+    .close-modal { 
+      cursor: pointer; 
+      font-size: 28px; 
+      color: #000000;
+      background: none;
+      border: none;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+    
+    .close-modal:hover {
+      background: #F5F5F5;
+    }
+    
+    /* Skeleton Loader - light mode */
+    .skeleton-loader {
+      position: absolute;
+      inset: 0;
+      background: #FFFFFF;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      z-index: 1000;
+    }
+    
+    .skeleton-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: #F0F0F0;
+      animation: pulse 1.5s infinite ease-in-out;
+    }
+    
+    .skeleton-name {
+      width: 120px;
+      height: 20px;
+      background: #F0F0F0;
+      border-radius: 10px;
+      animation: pulse 1.5s infinite ease-in-out;
+    }
+    
+    .skeleton-message {
+      width: 80%;
+      max-width: 300px;
+      height: 60px;
+      background: #F0F0F0;
+      border-radius: 15px;
+      animation: pulse 1.5s infinite ease-in-out;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+    
+    /* Toast - light mode */
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      color: #000000;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 174, 239, 0.2);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 2000;
+      max-width: 90%;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,174,239,0.3);
+    }
+    
+    #toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(-8px);
+    }
+    
+    /* Responsive */
+    @media (max-width: 480px) {
+      .message {
+        max-width: 90%;
+      }
+      
+      .emoji-modal {
+        left: 8px;
+        right: 8px;
+      }
+      
+      .emoji-grid {
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+      }
+      
+      .carousel-nav {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+      }
+      
+      .carousel-prev {
+        left: 10px;
+      }
+      
+      .carousel-next {
+        right: 10px;
+      }
+    }
+    
+    /* Hide scrollbars */
+    .message-area::-webkit-scrollbar,
+    .preview-area::-webkit-scrollbar,
+    .emoji-grid-container::-webkit-scrollbar {
+      display: none;
+    }
+    
+    /* Safe area support */
+    @supports (padding: env(safe-area-inset-bottom)) {
+      .input-bar {
+        padding-bottom: calc(12px + env(safe-area-inset-bottom));
+      }
+      header {
+        padding-top: calc(16px + env(safe-area-inset-top));
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <button class="back-btn" id="back-btn">
+        <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+      </button>
+      <div class="user-info-wrapper">
+        <div class="user-avatar">
+          <img id="partner-avatar" src="" alt="Partner">
+        </div>
+        <div class="user-info">
+          <div id="partner-name" class="username">Loading...</div>
+          <div class="status-wrapper">
+            <div id="typing-status" class="typing-status">
+              <span>typing</span>
+              <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+              </div>
+            </div>
+            <div id="online-status" class="online-status">Offline</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="header-btn">
+        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Skeleton Loader -->
+  <div class="skeleton-loader" id="skeleton-loader">
+    <div class="skeleton-avatar"></div>
+    <div class="skeleton-name"></div>
+    <div class="skeleton-message"></div>
+    <div class="skeleton-message" style="width: 60%; align-self: flex-end;"></div>
+    <div class="skeleton-message" style="width: 70%;"></div>
+  </div>
+
+  <div class="message-area" id="message-area">
+    <!-- Messages will be loaded here -->
+  </div>
+
+  <!-- New Message Indicator -->
+  <button class="new-message-indicator" id="new-message-indicator">
+    <span>New messages</span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
+    </svg>
+  </button>
+
+  <!-- Image Carousel -->
+  <div class="image-carousel" id="image-carousel">
+    <div class="carousel-header">
+      <div class="carousel-count" id="carousel-count">1/1</div>
+      <button class="carousel-close" id="carousel-close">×</button>
+    </div>
+    <div class="carousel-container">
+      <div class="carousel-track" id="carousel-track"></div>
+      <button class="carousel-nav carousel-prev" id="carousel-prev">‹</button>
+      <button class="carousel-nav carousel-next" id="carousel-next">›</button>
+    </div>
+    <div class="carousel-indicators" id="carousel-indicators"></div>
+  </div>
+
+  <div class="input-bar">
+    <div class="preview-area" id="preview-area"></div>
+    <div class="input-container">
+      <div class="input-icon">
+        <input type="file" id="photo-input" accept="image/*" multiple style="display: none;">
+        <svg viewBox="0 0 24 24" id="photo-button">
+          <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+        </svg>
+      </div>
+      <div class="input-icon">
+        <svg viewBox="0 0 24 24" id="emoji-button">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-3-9c.83 0 1.5-.67 1.5-1.5S9.83 8 9 8s-1.5.67-1.5 1.5S8.17 11 9 11zm6 0c.83 0 1.5-.67 1.5-1.5S15.83 8 15 8s-1.5.67-1.5 1.5S14.17 11 15 11zm-6.5 2h7a3.5 3.5 0 0 1-7 0z"/>
+        </svg>
+      </div>
+      <textarea class="message-input" id="message-input" placeholder="Message…" rows="1"></textarea>
+      <button class="send-btn" id="send-btn">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Emoji Picker -->
+  <div class="emoji-modal" id="emoji-modal">
+    <div class="emoji-header">
+      <div class="emoji-title">Emoji Picker</div>
+      <input type="text" class="emoji-search" id="emoji-search" placeholder="Search emojis...">
+      <button class="close-modal" id="close-modal">×</button>
+    </div>
+    <div class="emoji-categories" id="emoji-categories"></div>
+    <div class="emoji-grid-container">
+      <div class="emoji-grid" id="emoji-grid"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <script>
+    const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
+    const API_BASE_URL = 'https://instaping.org/api';
+
+    // ==================== GLOBAL VARIABLES ====================
+    const token = localStorage.getItem('token');
+    if (!token) {
+        alert('Please log in first.');
+        window.location.href = 'login.html';
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlId = urlParams.get('id');
+    if (!urlId) {
+        alert('No chat ID provided');
+        history.back();
+    }
+
+    // DOM Elements
+    const skeletonLoader = document.getElementById('skeleton-loader');
+    const messageArea = document.getElementById('message-area');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const photoButton = document.getElementById('photo-button');
+    const photoInput = document.getElementById('photo-input');
+    const previewArea = document.getElementById('preview-area');
+    const backBtn = document.getElementById('back-btn');
+    const partnerNameEl = document.getElementById('partner-name');
+    const partnerAvatarEl = document.getElementById('partner-avatar');
+    const onlineStatusEl = document.getElementById('online-status');
+    const typingStatusEl = document.getElementById('typing-status');
+    const newMessageIndicator = document.getElementById('new-message-indicator');
+    const toast = document.getElementById('toast');
+    
+    // Carousel Elements
+    const imageCarousel = document.getElementById('image-carousel');
+    const carouselTrack = document.getElementById('carousel-track');
+    const carouselCount = document.getElementById('carousel-count');
+    const carouselClose = document.getElementById('carousel-close');
+    const carouselPrev = document.getElementById('carousel-prev');
+    const carouselNext = document.getElementById('carousel-next');
+    const carouselIndicators = document.getElementById('carousel-indicators');
+
+    let currentUserId = null;
+    let partnerUserId = null;
+    let chatId = null;
+    let pendingImages = [];
+    let wsManager = null;
+    let typingTimer = null;
+    let sendingMessages = new Map(); // Maps: tempId -> {messageData, element}
+    
+    // Carousel state
+    let currentCarouselImages = [];
+    let currentSlideIndex = 0;
+
+    // ==================== HELPER FUNCTIONS ====================
+    function showToast(message, duration = 2000) {
+      toast.textContent = message;
+      toast.classList.add('show');
+
+      clearTimeout(toast.hideTimeout);
+      toast.hideTimeout = setTimeout(() => {
+        toast.classList.remove('show');
+      }, duration);
+    }
+
+    function showNewMessageIndicator() {
+        newMessageIndicator.style.display = 'flex';
+    }
+
+    function hideNewMessageIndicator() {
+        newMessageIndicator.style.display = 'none';
+    }
+
+    function isUserAtBottom() {
+        const scrollPosition = messageArea.scrollTop;
+        const totalHeight = messageArea.scrollHeight;
+        const visibleHeight = messageArea.clientHeight;
+        return (totalHeight - visibleHeight - scrollPosition) < 100;
+    }
+
+    function parseJwt(token) {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload).userId || null;
+        } catch (e) {
+            console.error('Failed to parse JWT:', e);
+            return null;
+        }
+    }
+
+    function formatTimestamp(unix) {
+        if (!unix) return 'Just now';
+        const date = new Date(unix * 1000);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function updateSendButton() {
+        const hasContent = messageInput.value.trim() || pendingImages.length > 0;
+        
+        if (hasContent) {
+            sendBtn.classList.add('enabled');
+        } else {
+            sendBtn.classList.remove('enabled');
+        }
+    }
+
+    function createImageGroup(images, messageId) {
+        const groupCount = images.length;
+        let groupClass = 'image-group-1';
+        
+        if (groupCount === 2) groupClass = 'image-group-2';
+        else if (groupCount === 3) groupClass = 'image-group-3';
+        else if (groupCount === 4) groupClass = 'image-group-4';
+        else if (groupCount === 5) groupClass = 'image-group-5';
+        else if (groupCount >= 6) groupClass = 'image-group-6';
+        
+        const groupDiv = document.createElement('div');
+        groupDiv.className = `image-group ${groupClass}`;
+        groupDiv.dataset.messageId = messageId;
+        
+        images.forEach((imgSrc, index) => {
+            const img = document.createElement('img');
+            img.className = 'grouped-image';
+            img.src = imgSrc;
+            img.alt = `Image ${index + 1}`;
+            img.loading = 'lazy';
+            
+            // Add click event to each image
+            img.addEventListener('click', () => {
+                openImageCarousel(images, index);
+            });
+            
+            groupDiv.appendChild(img);
+        });
+        
+        return groupDiv;
+    }
+
+    // ==================== IMAGE CAROUSEL ====================
+    function openImageCarousel(images, startIndex = 0) {
+        currentCarouselImages = images;
+        currentSlideIndex = startIndex;
+        
+        // Clear previous content
+        carouselTrack.innerHTML = '';
+        carouselIndicators.innerHTML = '';
+        
+        // Create slides
+        images.forEach((imageUrl, index) => {
+            const slide = document.createElement('div');
+            slide.className = 'carousel-slide';
+            
+            const img = document.createElement('img');
+            img.className = 'carousel-image';
+            img.src = imageUrl;
+            img.alt = `Image ${index + 1}`;
+            img.loading = 'lazy';
+            
+            // Add click to close on image
+            img.addEventListener('click', closeCarousel);
+            
+            slide.appendChild(img);
+            carouselTrack.appendChild(slide);
+            
+            // Create indicator
+            const indicator = document.createElement('div');
+            indicator.className = 'carousel-indicator';
+            if (index === startIndex) {
+                indicator.classList.add('active');
+            }
+            indicator.addEventListener('click', () => goToSlide(index));
+            carouselIndicators.appendChild(indicator);
+        });
+        
+        // Update counter
+        updateCarouselCounter();
+        
+        // Show carousel
+        imageCarousel.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        // Set initial position
+        goToSlide(startIndex);
+    }
+
+    function updateCarouselCounter() {
+        carouselCount.textContent = `${currentSlideIndex + 1}/${currentCarouselImages.length}`;
+    }
+
+    function goToSlide(index) {
+        if (index < 0 || index >= currentCarouselImages.length) return;
+        
+        currentSlideIndex = index;
+        carouselTrack.style.transform = `translateX(-${index * 100}%)`;
+        
+        // Update indicators
+        document.querySelectorAll('.carousel-indicator').forEach((indicator, i) => {
+            indicator.classList.toggle('active', i === index);
+        });
+        
+        updateCarouselCounter();
+    }
+
+    function nextSlide() {
+        const nextIndex = (currentSlideIndex + 1) % currentCarouselImages.length;
+        goToSlide(nextIndex);
+    }
+
+    function prevSlide() {
+        const prevIndex = (currentSlideIndex - 1 + currentCarouselImages.length) % currentCarouselImages.length;
+        goToSlide(prevIndex);
+    }
+
+    function closeCarousel() {
+        imageCarousel.classList.remove('active');
+        document.body.style.overflow = '';
+        currentCarouselImages = [];
+        currentSlideIndex = 0;
+    }
+
+    // ==================== TYPING INDICATORS ====================
+    function showPartnerTyping() {
+        typingStatusEl.classList.add('active');
+        onlineStatusEl.style.display = 'none';
+    }
+
+    function hidePartnerTyping() {
+        typingStatusEl.classList.remove('active');
+        onlineStatusEl.style.display = 'block';
+    }
+
+    // ==================== MESSAGE CREATION ====================
+    function createMessageElement(message, isTemporary = false) {
+        const isOutgoing = message.senderId === currentUserId;
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
+        messageDiv.dataset.messageId = message.id;
+        
+        if (isTemporary) {
+            messageDiv.classList.add('temporary');
+            messageDiv.dataset.tempId = message.tempId;
+        }
+
+        // Create content container
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'message-content';
+        
+        if (message.type === 'text') {
+            // Sanitize text to prevent XSS
+            const textContent = document.createElement('span');
+            textContent.textContent = message.content;
+            contentContainer.appendChild(textContent);
+        } else if (message.type === 'image') {
+            try {
+                const images = JSON.parse(message.content);
+                if (Array.isArray(images) && images.length > 1) {
+                    const groupDiv = createImageGroup(images, message.id);
+                    contentContainer.appendChild(groupDiv);
+                } else {
+                    const imgSrc = Array.isArray(images) ? images[0] : message.content;
+                    const img = document.createElement('img');
+                    img.className = 'grouped-image';
+                    img.src = imgSrc;
+                    img.alt = 'Image';
+                    img.loading = 'lazy';
+                    img.addEventListener('click', () => {
+                        openImageCarousel([imgSrc], 0);
+                    });
+                    contentContainer.appendChild(img);
+                }
+            } catch {
+                const imgSrc = message.content;
+                const img = document.createElement('img');
+                img.className = 'grouped-image';
+                img.src = imgSrc;
+                img.alt = 'Image';
+                img.loading = 'lazy';
+                img.addEventListener('click', () => {
+                    openImageCarousel([imgSrc], 0);
+                });
+                contentContainer.appendChild(img);
+            }
+        } else {
+            const mediaText = document.createElement('span');
+            mediaText.textContent = '[Media]';
+            contentContainer.appendChild(mediaText);
+        }
+
+        // Add upload progress bar for sending image messages
+        if (isTemporary && message.type === 'image') {
+            const progressDiv = document.createElement('div');
+            progressDiv.className = 'upload-progress';
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            progressBar.id = `progress-${message.tempId}`;
+            progressDiv.appendChild(progressBar);
+            contentContainer.appendChild(progressDiv);
+        }
+
+        // Create timestamp
+        const timestamp = document.createElement('div');
+        timestamp.className = 'message-timestamp';
+        timestamp.textContent = formatTimestamp(message.createdAt);
+        
+        // Create read receipt for outgoing messages
+        if (isOutgoing) {
+            const readReceipt = document.createElement('div');
+            readReceipt.className = 'read-receipt';
+            readReceipt.textContent = message.isRead ? '✓✓ Read' : '✓ Sent';
+            
+            messageDiv.appendChild(contentContainer);
+            messageDiv.appendChild(timestamp);
+            messageDiv.appendChild(readReceipt);
+        } else {
+            messageDiv.appendChild(contentContainer);
+            messageDiv.appendChild(timestamp);
+        }
+        
+        return messageDiv;
+    }
+
+    function addMessageToUI(message, isTemporary = false, shouldShowIndicator = false) {
+        // Check if message already exists (for double message prevention)
+        const existingMessage = document.querySelector(`[data-message-id="${message.id}"]`);
+        if (existingMessage && !isTemporary) {
+            console.log('Message already exists, skipping:', message.id);
+            return existingMessage;
+        }
+        
+        const messageElement = createMessageElement(message, isTemporary);
+        messageArea.appendChild(messageElement);
+        
+        // Scroll to bottom if user is near bottom
+        if (isUserAtBottom()) {
+            setTimeout(() => {
+                messageArea.scrollTop = messageArea.scrollHeight;
+            }, 100);
+        } else if (shouldShowIndicator && message.senderId !== currentUserId) {
+            // Only show "new messages" indicator for messages from other users
+            // and only if shouldShowIndicator is true
+            showNewMessageIndicator();
+        }
+        
+        return messageElement;
+    }
+
+    function updateUploadProgress(tempId, progress) {
+        const progressBar = document.getElementById(`progress-${tempId}`);
+        if (progressBar) {
+            progressBar.style.width = `${progress}%`;
+        }
+    }
+
+    function updateMessageStatus(messageId, isRead = false) {
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const receiptEl = messageElement.querySelector('.read-receipt');
+            if (receiptEl) {
+                receiptEl.textContent = isRead ? '✓✓ Read' : '✓ Sent';
+            }
+            messageElement.classList.remove('temporary');
+        }
+    }
+
+    function replaceTemporaryMessage(tempId, realMessage) {
+        const tempMessage = document.querySelector(`[data-temp-id="${tempId}"]`);
+        if (tempMessage) {
+            // Create the real message element
+            const realMessageElement = createMessageElement(realMessage);
+            
+            // Replace the temporary message with the real one
+            tempMessage.replaceWith(realMessageElement);
+            
+            console.log('Replaced temporary message:', tempId, 'with real message:', realMessage.id);
+            
+            // Scroll to show the new message
+            if (isUserAtBottom()) {
+                setTimeout(() => {
+                    messageArea.scrollTop = messageArea.scrollHeight;
+                }, 100);
+            }
+        }
+        
+        // Clean up the sendingMessages map
+        sendingMessages.delete(tempId);
+    }
+
+    // ==================== WEBSOCKET MANAGER ====================
+    class ChatRoomWebSocketManager {
+        constructor(chatId) {
+            this.socket = null;
+            this.chatId = chatId;
+            this.reconnectInterval = 3000;
+            this.maxReconnectAttempts = 5;
+            this.reconnectAttempts = 0;
+            this.isConnected = false;
+            this.shouldReconnect = true;
+            this.typingTimeout = null;
+            this.partnerTypingTimeout = null;
+        }
+
+        connect() {
+            if (this.socket?.readyState === WebSocket.OPEN) {
+                return;
+            }
+
+            if (!token) {
+                console.warn('No token found, WebSocket connection deferred');
+                return;
+            }
+
+            const wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
+            console.log('Connecting to Chat Room WebSocket:', wsUrl);
+            
+            try {
+                this.socket = new WebSocket(wsUrl);
+                
+                this.socket.onopen = () => {
+                    console.log('Chat Room WebSocket connected');
+                    this.isConnected = true;
+                    this.reconnectAttempts = 0;
+                    
+                    this.send({
+                        type: 'subscribe_chat',
+                        payload: { chatId: this.chatId }
+                    });
+                    
+                    this.markAllMessagesRead();
+                };
+
+                this.socket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('📨 Chat Room WebSocket message:', data);
+                        this.handleMessage(data);
+                    } catch (error) {
+                        console.error('Error parsing WebSocket message:', error);
+                    }
+                };
+
+                this.socket.onclose = (event) => {
+                    console.log('Chat Room WebSocket disconnected');
+                    this.isConnected = false;
+                    
+                    if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                        setTimeout(() => this.reconnect(), this.reconnectInterval);
+                    }
+                };
+
+                this.socket.onerror = (error) => {
+                    console.error('Chat Room WebSocket error:', error);
+                };
+
+            } catch (error) {
+                console.error('Failed to create WebSocket:', error);
+                setTimeout(() => this.reconnect(), this.reconnectInterval);
+            }
+        }
+
+        reconnect() {
+            if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                console.error('Max reconnection attempts reached');
+                return;
+            }
+            
+            this.reconnectAttempts++;
+            console.log(`🔄 Reconnecting attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+            this.connect();
+        }
+
+        send(data) {
+            if (this.socket?.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify(data));
+                return true;
+            } else {
+                setTimeout(() => this.send(data), 1000);
+                return false;
+            }
+        }
+
+        handleMessage(data) {
+            const { type, payload } = data;
+            
+            switch (type) {
+                case 'new_message':
+                    if (payload.chatId === this.chatId) {
+                        this.handleNewMessage(payload);
+                    }
+                    break;
+                    
+                case 'message_read':
+                    if (payload.chatId === this.chatId) {
+                        this.handleMessageRead(payload);
+                    }
+                    break;
+                    
+                case 'typing_start':
+                    if (payload.chatId === this.chatId && payload.userId !== currentUserId) {
+                        this.handleTypingStart(payload);
+                    }
+                    break;
+                    
+                case 'typing_end':
+                    if (payload.chatId === this.chatId) {
+                        this.handleTypingEnd(payload);
+                    }
+                    break;
+                    
+                case 'user_status_update':
+                    this.handleUserStatusUpdate(payload);
+                    break;
+            }
+        }
+
+        handleNewMessage(message) {
+            console.log('🆕 New message in chat:', message);
+            
+            // Check if this message is from current user (meaning we sent it)
+            if (message.senderId === currentUserId) {
+                // This is our own message coming back from server
+                console.log('Processing our own message from server:', message);
+                
+                // Find if we have a temporary message with similar content
+                let foundTempId = null;
+                
+                // Look through all temporary messages
+                document.querySelectorAll('.message.temporary').forEach(tempMsg => {
+                    const tempId = tempMsg.dataset.tempId;
+                    const contentElement = tempMsg.querySelector('.message-content span');
+                    
+                    if (contentElement && contentElement.textContent === message.content) {
+                        foundTempId = tempId;
+                    }
+                    
+                    // Also check for image messages
+                    if (!foundTempId) {
+                        const imgElement = tempMsg.querySelector('.message-content img');
+                        if (imgElement && imgElement.src) {
+                            try {
+                                const tempImages = JSON.parse(message.content);
+                                if (Array.isArray(tempImages) && tempImages.includes(imgElement.src)) {
+                                    foundTempId = tempId;
+                                }
+                            } catch {
+                                if (message.content === imgElement.src) {
+                                    foundTempId = tempId;
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                if (foundTempId) {
+                    // Replace the temporary message with the real one
+                    replaceTemporaryMessage(foundTempId, message);
+                } else {
+                    // If no temporary message found, just add it normally
+                    // Don't show "new messages" indicator for our own messages
+                    addMessageToUI(message, false, false);
+                }
+            } else {
+                // This is a new message from the partner
+                // Show "new messages" indicator only if user is not at bottom
+                const shouldShowIndicator = !isUserAtBottom();
+                addMessageToUI(message, false, shouldShowIndicator);
+                
+                // Mark as read
+                this.sendMessageRead([message.id]);
+            }
+        }
+
+        handleMessageRead(payload) {
+            console.log('📖 Messages read:', payload);
+            payload.messageIds.forEach(messageId => {
+                updateMessageStatus(messageId, true);
+            });
+        }
+
+        handleTypingStart(payload) {
+            console.log('✍️ Partner is typing');
+            showPartnerTyping();
+            
+            if (this.partnerTypingTimeout) {
+                clearTimeout(this.partnerTypingTimeout);
+            }
+            
+            this.partnerTypingTimeout = setTimeout(() => {
+                hidePartnerTyping();
+            }, 5000);
+        }
+
+        handleTypingEnd(payload) {
+            console.log('⏹️ Partner stopped typing');
+            hidePartnerTyping();
+            
+            if (this.partnerTypingTimeout) {
+                clearTimeout(this.partnerTypingTimeout);
+                this.partnerTypingTimeout = null;
+            }
+        }
+
+        handleUserStatusUpdate(payload) {
+            console.log('📊 User status updated:', payload);
+            if (payload.userId === partnerUserId) {
+                updatePartnerStatus(payload.status);
+            }
+        }
+
+        sendTypingStart() {
+            this.send({
+                type: 'typing_start',
+                payload: { chatId: this.chatId }
+            });
+        }
+
+        sendTypingEnd() {
+            this.send({
+                type: 'typing_end',
+                payload: { chatId: this.chatId }
+            });
+        }
+
+        sendMessageRead(messageIds) {
+            this.send({
+                type: 'message_read',
+                payload: { chatId: this.chatId, messageIds }
+            });
+        }
+
+        markAllMessagesRead() {
+            const unreadMessages = [];
+            const messageElements = messageArea.querySelectorAll('.message.incoming');
+            
+            messageElements.forEach(el => {
+                const messageId = el.dataset.messageId;
+                const receiptEl = el.querySelector('.read-receipt');
+                if (receiptEl && !receiptEl.textContent.includes('Read')) {
+                    unreadMessages.push(messageId);
+                }
+            });
+            
+            if (unreadMessages.length > 0) {
+                this.sendMessageRead(unreadMessages);
+            }
+        }
+
+        disconnect() {
+            this.shouldReconnect = false;
+            if (this.socket) {
+                this.socket.close();
+                this.socket = null;
+            }
+            this.isConnected = false;
+            
+            if (this.partnerTypingTimeout) {
+                clearTimeout(this.partnerTypingTimeout);
+            }
+        }
+    }
+
+    // ==================== EVENT HANDLERS ====================
+    backBtn.addEventListener('click', () => history.back());
+
+    messageArea.addEventListener('scroll', () => {
+        if (isUserAtBottom()) {
+            hideNewMessageIndicator();
+        }
+    });
+
+    newMessageIndicator.addEventListener('click', () => {
+        messageArea.scrollTop = messageArea.scrollHeight;
+        hideNewMessageIndicator();
+    });
+
+    carouselClose.addEventListener('click', closeCarousel);
+    carouselPrev.addEventListener('click', prevSlide);
+    carouselNext.addEventListener('click', nextSlide);
+
+    // Swipe for carousel
+    let touchStartX = 0;
+    imageCarousel.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+    });
+    
+    imageCarousel.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].screenX;
+        const swipeThreshold = 50;
+        const diff = touchStartX - touchEndX;
+        
+        if (Math.abs(diff) > swipeThreshold) {
+            if (diff > 0) {
+                nextSlide();
+            } else {
+                prevSlide();
+            }
+        }
+    });
+
+    // Add progress bar to image picker - FIXED VERSION
+    function createImagePreviewWithProgress(file) {
+        const item = document.createElement('div');
+        item.className = 'preview-item';
+        
+        const progressOverlay = document.createElement('div');
+        progressOverlay.className = 'preview-progress';
+        
+        const progressBar = document.createElement('div');
+        progressBar.className = 'preview-progress-bar';
+        
+        const progressText = document.createElement('div');
+        progressText.className = 'preview-progress-text';
+        progressText.textContent = '0%';
+        
+        progressOverlay.appendChild(progressBar);
+        progressOverlay.appendChild(progressText);
+        
+        const img = document.createElement('img');
+        
+        const removeBtn = document.createElement('div');
+        removeBtn.className = 'preview-remove';
+        removeBtn.textContent = '×';
+        
+        item.appendChild(img);
+        item.appendChild(progressOverlay);
+        item.appendChild(removeBtn);
+        
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+        
+        // Create updateProgress function
+        const updateProgress = (percent) => {
+            file.progress.value = percent;
+            progressBar.style.width = `${percent}%`;
+            progressText.textContent = `${percent}%`;
+            
+            if (percent >= 100) {
+                setTimeout(() => {
+                    progressOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                        progressOverlay.style.display = 'none';
+                    }, 300);
+                }, 500);
+            }
+        };
+        
+        // Store the updateProgress function directly on the file object
+        file.progress = {
+            value: 0,
+            updateProgress: updateProgress
+        };
+        
+        removeBtn.onclick = () => {
+            pendingImages = pendingImages.filter(f => f !== file);
+            item.remove();
+            updateSendButton();
+        };
+        
+        previewArea.appendChild(item);
+        
+        return {
+            item,
+            updateProgress
+        };
+    }
+
+    // Add CSS for progress overlay
+    const style = document.createElement('style');
+    style.textContent = `
+        .preview-item {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            flex-shrink: 0;
+        }
+        
+        .preview-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s;
+        }
+        
+        .preview-progress-bar {
+            width: 60%;
+            height: 4px;
+            background: #2A2A2A;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        
+        .preview-progress-bar::after {
+            content: '';
+            display: block;
+            height: 100%;
+            background: #FFFFFF;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .preview-progress-text {
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+        }
+    `;
+    document.head.appendChild(style);
+
+    photoInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        files.forEach(file => {
+            if (!file.type.startsWith('image/')) return;
+
+            pendingImages.push(file);
+            createImagePreviewWithProgress(file);
+        });
+
+        e.target.value = '';
+        updateSendButton();
+    });
+
+    photoButton.addEventListener('click', () => photoInput.click());
+
+    messageInput.addEventListener('input', () => {
+        updateSendButton();
+        
+        if (wsManager && chatId) {
+            if (typingTimer) {
+                clearTimeout(typingTimer);
+            } else {
+                wsManager.sendTypingStart();
+            }
+            
+            typingTimer = setTimeout(() => {
+                wsManager.sendTypingEnd();
+                typingTimer = null;
+            }, 2000);
+        }
+    });
+
+    messageInput.addEventListener('blur', () => {
+        if (wsManager && typingTimer) {
+            clearTimeout(typingTimer);
+            wsManager.sendTypingEnd();
+            typingTimer = null;
+        }
+    });
+
+    // ==================== MESSAGE SENDING ====================
+    async function sendTextMessage() {
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        // Generate a unique temporary ID
+        const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        
+        // Create temporary message
+        const tempMessage = {
+            id: tempId, // Use temp ID as ID for now
+            tempId: tempId,
+            senderId: currentUserId,
+            type: 'text',
+            content: text,
+            createdAt: Math.floor(Date.now() / 1000),
+            isRead: false
+        };
+
+        // Add to UI immediately (don't show indicator for our own messages)
+        addMessageToUI(tempMessage, true, false);
+        
+        // Store the temporary message info
+        sendingMessages.set(tempId, {
+            content: text,
+            element: document.querySelector(`[data-temp-id="${tempId}"]`)
+        });
+
+        // Clear input
+        messageInput.value = '';
+        updateSendButton();
+        messageInput.style.height = 'auto';
+
+        // Send to server
+        try {
+            const response = await fetch(`${API_BASE_URL}/message`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    chatId, 
+                    content: text, 
+                    type: 'text' 
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to send message');
+            }
+            
+            const data = await response.json();
+            console.log('Message sent:', data);
+            
+        } catch (err) {
+            console.error('Send message error:', err);
+            showToast('Failed to send message');
+            const tempMessageEl = document.querySelector(`[data-temp-id="${tempId}"]`);
+            if (tempMessageEl) {
+                tempMessageEl.classList.add('error');
+            }
+        }
+    }
+
+    async function sendImageMessages() {
+        if (pendingImages.length === 0) return;
+
+        const uploadedUrls = [];
+        const tempIds = [];
+        
+        // Show uploading progress for each image
+        for (const [index, file] of pendingImages.entries()) {
+            const tempId = 'temp-img-' + Date.now() + '-' + index + '-' + Math.random().toString(36).substr(2, 9);
+            tempIds.push(tempId);
+            
+            const formData = new FormData();
+            formData.append('photo', file);
+
+            const tempMessage = {
+                id: tempId,
+                tempId: tempId,
+                senderId: currentUserId,
+                type: 'image',
+                content: JSON.stringify([URL.createObjectURL(file)]),
+                createdAt: Math.floor(Date.now() / 1000),
+                isRead: false
+            };
+
+            // Add to UI immediately with progress bar (don't show indicator for our own messages)
+            addMessageToUI(tempMessage, true, false);
+            
+            // Store the temporary message info
+            sendingMessages.set(tempId, {
+                content: URL.createObjectURL(file),
+                element: document.querySelector(`[data-temp-id="${tempId}"]`)
+            });
+
+            try {
+                // Update preview progress - SAFE CHECK
+                if (file.progress && typeof file.progress.updateProgress === 'function') {
+                    file.progress.updateProgress(10);
+                } else {
+                    console.warn('Progress function not found for file:', file.name);
+                }
+
+                const xhr = new XMLHttpRequest();
+                
+                // Track upload progress
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (event.lengthComputable) {
+                        const percentComplete = Math.round((event.loaded / event.total) * 90) + 10; // Start from 10%
+                        if (file.progress && typeof file.progress.updateProgress === 'function') {
+                            file.progress.updateProgress(percentComplete);
+                        }
+                        updateUploadProgress(tempId, percentComplete);
+                    }
+                });
+
+                // Create a promise for the upload
+                const uploadPromise = new Promise((resolve, reject) => {
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            try {
+                                const response = JSON.parse(xhr.responseText);
+                                resolve(response);
+                            } catch (e) {
+                                reject(new Error('Invalid response format'));
+                            }
+                        } else {
+                            reject(new Error(`Upload failed: ${xhr.statusText}`));
+                        }
+                    };
+                    xhr.onerror = () => reject(new Error('Network error'));
+                    xhr.onabort = () => reject(new Error('Upload aborted'));
+                });
+
+                xhr.open('POST', `${API_BASE_URL}/upload-photo`);
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                xhr.send(formData);
+
+                const result = await uploadPromise;
+                const url = result.url || result.imageUrl || result.fileUrl;
+                
+                if (!url) {
+                    throw new Error('No URL returned from server');
+                }
+                
+                uploadedUrls.push(url);
+
+                // Complete progress
+                if (file.progress && typeof file.progress.updateProgress === 'function') {
+                    file.progress.updateProgress(100);
+                }
+                updateUploadProgress(tempId, 100);
+
+                // Update message with real URL
+                const tempMessageEl = document.querySelector(`[data-temp-id="${tempId}"]`);
+                if (tempMessageEl) {
+                    const img = tempMessageEl.querySelector('img');
+                    if (img) img.src = url;
+                    
+                    // Update the stored content
+                    const tempData = sendingMessages.get(tempId);
+                    if (tempData) {
+                        tempData.content = url;
+                        sendingMessages.set(tempId, tempData);
+                    }
+                }
+
+            } catch (err) {
+                console.error('Image upload error:', err);
+                showToast(`Failed to upload image: ${err.message}`);
+                
+                const tempMessageEl = document.querySelector(`[data-temp-id="${tempId}"]`);
+                if (tempMessageEl) {
+                    tempMessageEl.classList.add('error');
+                }
+                
+                // Update progress to show error
+                if (file.progress && typeof file.progress.updateProgress === 'function') {
+                    file.progress.updateProgress(0);
+                    // We need to find the progress text element differently
+                    const previewItem = tempMessageEl ? tempMessageEl.closest('.preview-item') : null;
+                    if (previewItem) {
+                        const progressText = previewItem.querySelector('.preview-progress-text');
+                        if (progressText) {
+                            progressText.textContent = 'Error';
+                            progressText.style.color = '#ff4444';
+                        }
+                    }
+                }
+            }
+        }
+
+        // Send all images as one message
+        if (uploadedUrls.length > 0) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/message`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        chatId, 
+                        content: JSON.stringify(uploadedUrls), 
+                        type: 'image' 
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Images sent:', data);
+                } else {
+                    throw new Error(`Failed to send message: ${response.status}`);
+                }
+            } catch (err) {
+                console.error('Failed to send images:', err);
+                showToast('Failed to send images');
+            }
+        }
+
+        // Clear preview area after a delay
+        setTimeout(() => {
+            previewArea.innerHTML = '';
+            pendingImages = [];
+            updateSendButton();
+        }, 1000);
+    }
+
+    async function sendAll() {
+        if (!chatId) {
+            showToast('Cannot send message');
+            return;
+        }
+
+        // Stop typing
+        if (wsManager && typingTimer) {
+            clearTimeout(typingTimer);
+            wsManager.sendTypingEnd();
+            typingTimer = null;
+        }
+
+        // Send text first, then images
+        await sendTextMessage();
+        await sendImageMessages();
+    }
+
+    sendBtn.addEventListener('click', sendAll);
+
+    messageInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendAll();
+        }
+    });
+
+    // ==================== EMOJI PICKER ====================
+    const emojiButton = document.getElementById('emoji-button');
+    const emojiModal = document.getElementById('emoji-modal');
+    const closeModal = document.getElementById('close-modal');
+    const emojiGrid = document.getElementById('emoji-grid');
+    const emojiCategoriesEl = document.getElementById('emoji-categories');
+    const emojiSearch = document.getElementById('emoji-search');
+
+    // Complete emoji list with all categories
+    const emojiCategories = [
+      {
+        name: 'smileys',
+        emojis: ['😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '😘', '🥰', '😇', '😈', '👿', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾', '🙈', '🙉', '🙊', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾']
+      },
+      {
+        name: 'people',
+        emojis: ['👋', '🤚', '🖐', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄']
+      },
+      {
+        name: 'animals',
+        emojis: ['🐵', '🐒', '🦍', '🦧', '🐶', '🐕', '🦮', '🐕‍🦺', '🐩', '🐺', '🦊', '🦝', '🐱', '🐈', '🦁', '🐯', '🐅', '🐆', '🐴', '🐎', '🦄', '🦓', '🦌', '🐮', '🐂', '🐃', '🐄', '🐷', '🐖', '🐗', '🐽', '🐏', '🐑', '🐐', '🐪', '🐫', '🦙', '🦒', '🐘', '🦣', '🦏', '🦛', '🐭', '🐁', '🐀', '🐹', '🐰', '🐇', '🐿️', '🦫']
+      },
+      {
+        name: 'food',
+        emojis: ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🫚', '🫛', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴']
+      },
+      {
+        name: 'activities',
+        emojis: ['⚽️', '🏀', '🏈', '⚾️', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳️', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛶', '🏄‍♂️', '🏄‍♀️', '🏊‍♂️', '🏊‍♀️', '🤽‍♂️', '🤽‍♀️', '🚣‍♂️', '🚣‍♀️', '🧗‍♂️', '🧗‍♀️', '🚵‍♂️', '🚵‍♀️', '🚴‍♂️', '🚴‍♀️', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️']
+      },
+      {
+        name: 'travel',
+        emojis: ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🛵', '🏍️', '🛺', '🚔', '🚍', '🚘', '🚖', '✈️', '🛩️', '🛫', '🛬', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵️', '🚤', '🛥️', '🛳️', '⛴️', '🚢', '🚂', '🚃', '🚄', '🚅', '🚆', '🚇', '🚈', '🚉', '🚊', '🚝', '🚞', '🚋', '🚌', '🚍', '🚎']
+      },
+      {
+        name: 'objects',
+        emojis: ['⌚️', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '💽', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⛏️']
+      },
+      {
+        name: 'symbols',
+        emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈️', '♉️', '♊️', '♋️', '♌️', '♍️', '♎️', '♏️', '♐️', '♑️', '♒️', '♓️', '🆔', '⚛️', '🕳️', '♾️', '🏧', '💯', '🔞', '🆚']
+      }
+    ];
+
+    let activeCategory = 'smileys';
+
+    function initEmojiPicker() {
+        // Create category buttons
+        const categoryIcons = {
+            'smileys': '😀',
+            'people': '👋',
+            'animals': '🐵',
+            'food': '🍏',
+            'activities': '⚽️',
+            'travel': '🚗',
+            'objects': '⌚️',
+            'symbols': '❤️'
+        };
+
+        Object.entries(categoryIcons).forEach(([category, icon]) => {
+            const button = document.createElement('div');
+            button.className = 'emoji-category';
+            if (category === activeCategory) button.classList.add('active');
+            button.textContent = icon;
+            button.title = category.charAt(0).toUpperCase() + category.slice(1);
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.emoji-category').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                activeCategory = category;
+                renderEmojis();
+            });
+            emojiCategoriesEl.appendChild(button);
+        });
+
+        // Search functionality
+        emojiSearch.addEventListener('input', renderEmojis);
+
+        renderEmojis();
+    }
+
+    function renderEmojis() {
+        emojiGrid.innerHTML = '';
+        const searchTerm = emojiSearch.value.toLowerCase();
+        
+        let emojisToShow = [];
+        if (searchTerm) {
+            emojiCategories.forEach(category => {
+                category.emojis.forEach(emoji => {
+                    if (emoji.includes(searchTerm)) {
+                        emojisToShow.push(emoji);
+                    }
+                });
+            });
+        } else {
+            const category = emojiCategories.find(c => c.name === activeCategory);
+            emojisToShow = category ? category.emojis : emojiCategories[0].emojis;
+        }
+
+        // Limit to 48 emojis per page for performance
+        emojisToShow.slice(0, 48).forEach(emoji => {
+            const span = document.createElement('span');
+            span.className = 'emoji-item';
+            span.textContent = emoji;
+            span.title = emoji;
+            span.addEventListener('click', () => {
+                messageInput.value += emoji;
+                messageInput.focus();
+                updateSendButton();
+                emojiModal.classList.remove('show');
+            });
+            emojiGrid.appendChild(span);
+        });
+    }
+
+    emojiButton.addEventListener('click', () => emojiModal.classList.toggle('show'));
+    closeModal.addEventListener('click', () => emojiModal.classList.remove('show'));
+    document.addEventListener('click', e => {
+        if (!emojiModal.contains(e.target) && e.target !== emojiButton) {
+            emojiModal.classList.remove('show');
+        }
+    });
+
+    // ==================== CHAT FUNCTIONS ====================
+    function updatePartnerStatus(status) {
+        let statusText = 'Offline';
+        
+        switch(status) {
+            case 'available':
+                statusText = 'Online';
+                break;
+            case 'busy':
+                statusText = 'Busy';
+                break;
+            case 'offline':
+                statusText = 'Offline';
+                break;
+        }
+        
+        onlineStatusEl.textContent = statusText;
+    }
+
+    async function loadChatHeader() {
+        try {
+            const chatRes = await fetch(`${API_BASE_URL}/chats/${urlId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (chatRes.ok) {
+                const chat = await chatRes.json();
+                chatId = chat.id;
+                const partner = chat.partner;
+                partnerUserId = partner.id;
+
+                partnerNameEl.textContent = partner.name || 'Unknown';
+                partnerAvatarEl.src = partner.avatar || fallbackImage;
+                updatePartnerStatus(partner.status || 'offline');
+                return;
+            }
+
+            if (chatRes.status === 404) {
+                const userRes = await fetch(`${API_BASE_URL}/user/${urlId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!userRes.ok) throw new Error('User not found');
+
+                const partner = await userRes.json();
+                partnerUserId = partner.id || urlId;
+                chatId = null;
+
+                partnerNameEl.textContent = partner.name || 'Unknown';
+                partnerAvatarEl.src = partner.avatar || fallbackImage;
+                updatePartnerStatus(partner.status || 'offline');
+                return;
+            }
+
+            throw new Error('Failed to load');
+        } catch (err) {
+            console.error('Header load error:', err);
+            partnerNameEl.textContent = 'Error';
+            partnerAvatarEl.src = fallbackImage;
+        }
+    }
+
+    async function loadMessages() {
+        try {
+            if (!chatId && partnerUserId) {
+                try {
+                    const createRes = await fetch(`${API_BASE_URL}/chats`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ participants: [partnerUserId] })
+                    });
+                    if (createRes.ok) {
+                        const data = await createRes.json();
+                        chatId = data.id;
+                        
+                        wsManager = new ChatRoomWebSocketManager(chatId);
+                        setTimeout(() => wsManager.connect(), 500);
+                    }
+                } catch (err) {
+                    console.error('Failed to create chat:', err);
+                }
+            }
+
+            let messages = [];
+            if (chatId) {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/messages/${chatId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!res.ok) throw new Error(`Failed to load messages: ${res.status}`);
+                    messages = await res.json() || [];
+                    
+                    if (!wsManager) {
+                        wsManager = new ChatRoomWebSocketManager(chatId);
+                        setTimeout(() => wsManager.connect(), 500);
+                    }
+                } catch (err) {
+                    console.error('Messages load error:', err);
+                    messages = [];
+                }
+            }
+
+            // Hide skeleton loader
+            skeletonLoader.style.display = 'none';
+
+            // Clear message area
+            messageArea.innerHTML = '';
+
+            if (messages.length === 0) {
+                messageArea.innerHTML = '<div class="system-message">Start the conversation</div>';
+                return;
+            }
+
+            messageArea.innerHTML = '<div class="system-message">Today</div>';
+
+            messages.forEach(msg => {
+                addMessageToUI(msg);
+            });
+
+            messageArea.scrollTop = messageArea.scrollHeight;
+            
+            if (wsManager) {
+                wsManager.markAllMessagesRead();
+            }
+        } catch (error) {
+            console.error('Load messages error:', error);
+            skeletonLoader.style.display = 'none';
+            showToast('Failed to load messages');
+        }
+    }
+
+    // ==================== INITIALIZATION ====================
+    async function init() {
+        currentUserId = parseJwt(token);
+        if (!currentUserId) {
+            alert('Invalid session. Please log in again.');
+            localStorage.removeItem('token');
+            setTimeout(() => window.location.href = 'login.html', 1500);
+            return;
+        }
+
+        // Show skeleton loader while loading
+        skeletonLoader.style.display = 'flex';
+
+        await loadChatHeader();
+        await loadMessages();
+        updateSendButton();
+        initEmojiPicker();
+        
+        // Auto-resize textarea
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            updateSendButton();
+        });
+
+        // Prevent keyboard from pushing header
+        if ('visualViewport' in window) {
+            window.visualViewport.addEventListener('resize', () => {
+                document.body.style.height = window.visualViewport.height + 'px';
+            });
+        }
+
+        // Backup refresh every 30 seconds
+        setInterval(() => {
+            if (!wsManager || !wsManager.isConnected) {
+                loadMessages();
+            }
+        }, 30000);
+    }
+
+    // Clean up
+    window.addEventListener('beforeunload', () => {
+        if (wsManager) {
+            wsManager.disconnect();
+        }
+        if (typingTimer) {
+            clearTimeout(typingTimer);
+        }
+        
+        // Clean up object URLs
+        document.querySelectorAll('.grouped-image').forEach(img => {
+            if (img.src.startsWith('blob:')) {
+                URL.revokeObjectURL(img.src);
+            }
+        });
+    });
+
+    // Make functions globally available
+    window.openImageCarousel = openImageCarousel;
+
+    init();
+</script>
+</body>
+</html>

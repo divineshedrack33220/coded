@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InstaPing | Login</title>
+  <link rel="icon" type="image/png" href="asset/logo.jpeg">
+  <link rel="manifest" href="manifest.json">
+  <!-- Add Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- theme-color updated to #00AEEF (primary brand color) -->
+  <meta name="theme-color" content="#00AEEF">
+
+  <style>
+    /* === LIGHT MODE COLOR SCHEME (matching the rest of the app) === */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #FFFFFF;
+      color: #000000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      padding: 40px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Logo container with blue circle behind */
+    .logo {
+      width: 150px;
+      height: 100px;
+      margin-bottom: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .logo::before {
+      content: '';
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      background: #00AEEF; /* primary blue */
+      border-radius: 50%;
+      z-index: 0;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .logo img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      position: relative;
+      z-index: 1;
+    }
+
+    .form-wrapper {
+      width: 100%;
+      margin-bottom: 24px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .email-input,
+    .password-input {
+      width: 100%;
+      height: 52px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      color: #000000;
+      font-size: 18px;
+      padding: 0 16px;
+      outline: none;
+    }
+
+    .email-input:focus,
+    .password-input:focus {
+      border-color: #00AEEF;
+      box-shadow: 0 0 0 2px rgba(0,174,239,0.2);
+    }
+
+    .email-input::placeholder,
+    .password-input::placeholder {
+      color: #8E8E8E;
+    }
+
+    .error-text {
+      color: #FF453A;
+      font-size: 14px;
+      margin-top: 8px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .error-text.visible {
+      opacity: 1;
+    }
+
+    .continue-btn {
+      width: 100%;
+      height: 52px;
+      background: #00AEEF;
+      color: #000000;
+      font-size: 17px;
+      font-weight: 600;
+      border: none;
+      border-radius: 26px;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 0.3s ease;
+      margin-bottom: 16px;
+    }
+
+    .continue-btn.enabled {
+      opacity: 1;
+    }
+
+    .divider {
+      width: 100%;
+      text-align: center;
+      margin: 24px 0;
+      position: relative;
+      color: #8E8E8E;
+      font-size: 14px;
+    }
+
+    .divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #E0E0E0;
+    }
+
+    .divider span {
+      background: #FFFFFF;
+      padding: 0 16px;
+    }
+
+    .google-btn {
+      width: 100%;
+      height: 52px;
+      background: #FFFFFF;
+      color: #000000;
+      font-size: 17px;
+      font-weight: 600;
+      border: 1px solid #E0E0E0;
+      border-radius: 26px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: background 0.3s ease;
+    }
+
+    .google-btn:hover {
+      background: #F5F5F5;
+    }
+
+    .google-btn img {
+      width: 20px;
+      height: 20px;
+    }
+
+    .signup-link {
+      margin-top: 24px;
+      font-size: 15px;
+      color: #000000;
+      text-align: center;
+    }
+
+    .signup-link a {
+      color: #00AEEF;
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    .terms {
+      margin-top: auto;
+      padding-top: 60px;
+      font-size: 12px;
+      color: #8E8E8E;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    /* Google Sign-In Button container */
+    #g_id_onload {
+      display: none;
+    }
+
+    #gsi-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* Very small toast notification - light mode */
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      color: #000000;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 174, 239, 0.2);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 200;
+      max-width: 90%;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,174,239,0.3);
+    }
+
+    #toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(-8px);
+    }
+
+    /* Minimal Install Prompt Modal */
+    #installModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    #installModal.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .install-content {
+      background: #FFFFFF;
+      border-radius: 20px 20px 0 0;
+      padding: 30px 24px 40px;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      border-top: 1px solid #E0E0E0;
+      transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    #installModal.show .install-content {
+      transform: translateY(0);
+    }
+
+    .install-logo {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 20px;
+      background: #F5F5F5;
+      border-radius: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #E0E0E0;
+    }
+
+    .install-logo img {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+    }
+
+    .install-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #000000;
+    }
+
+    .install-message {
+      color: #666666;
+      font-size: 16px;
+      line-height: 1.4;
+      margin-bottom: 30px;
+      font-weight: 400;
+    }
+
+    .install-btn {
+      width: 100%;
+      height: 52px;
+      background: #00AEEF;
+      color: #000000;
+      border: none;
+      border-radius: 26px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.3s ease;
+    }
+
+    .install-btn:hover {
+      opacity: 0.9;
+    }
+
+    .install-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 50%;
+      color: #000000;
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    .install-close:hover {
+      background: #E0E0E0;
+      color: #000000;
+    }
+
+    /* iOS instructions */
+    .ios-instructions {
+      margin-top: 20px;
+      padding: 12px;
+      background: #F5F5F5;
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      font-size: 12px;
+      color: #666666;
+      line-height: 1.4;
+    }
+
+    .ios-instructions strong {
+      color: #00AEEF;
+      font-weight: 600;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 480px) {
+      .install-content {
+        padding: 25px 20px 35px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <img src="asset/logo.png" alt="InstaPing Logo">
+    </div>
+
+    <div class="form-wrapper">
+      <div class="input-wrapper">
+        <input
+          type="email"
+          class="email-input"
+          placeholder="Email address"
+          id="email"
+          autocomplete="email"
+          autofocus
+        />
+      </div>
+
+      <div class="input-wrapper">
+        <input
+          type="password"
+          class="password-input"
+          placeholder="Password"
+          id="password"
+          autocomplete="current-password"
+        />
+        <div class="error-text" id="error">Invalid email or password</div>
+      </div>
+    </div>
+
+    <button class="continue-btn" id="continue" disabled>Continue</button>
+
+    <div class="divider"><span>or</span></div>
+
+    <!-- Google Sign-In Button Container -->
+    <div id="gsi-container"></div>
+
+    <!-- Fallback Google Button (in case GSI fails) -->
+    <button class="google-btn" id="google-fallback" style="display: none;">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Google_Favicon_2025.svg/250px-Google_Favicon_2025.svg.png" alt="Google G Logo">
+      Continue with Google
+    </button>
+
+    <div class="signup-link">
+      Don't have an account? <a href="signup.html">Sign up</a>
+    </div>
+
+    <div class="terms">
+      By continuing, you agree to our Terms & Privacy Policy
+    </div>
+  </div>
+
+  <!-- Very small toast element -->
+  <div id="toast"></div>
+
+  <!-- Minimal Install Prompt Modal -->
+  <div id="installModal">
+    <div class="install-content">
+      <button class="install-close" id="closeInstallModal">×</button>
+      
+      <div class="install-logo">
+        <img src="asset/logo.png" alt="InstaPing Logo">
+      </div>
+      
+      <h2 class="install-title">InstaPing</h2>
+      <p class="install-message">Install for faster access and offline use</p>
+      
+      <button class="install-btn" id="installBtn">
+        Install App
+      </button>
+      
+      <!-- iOS specific instructions -->
+      <div class="ios-instructions" id="iosInstructions" style="display: none;">
+        Tap <strong>Share</strong> then <strong>Add to Home Screen</strong>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Toast function - very small and subtle
+    function showToast(message, duration = 2000) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+
+      clearTimeout(toast.hideTimeout);
+      toast.hideTimeout = setTimeout(() => {
+        toast.classList.remove('show');
+      }, duration);
+    }
+
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const continueBtn = document.getElementById('continue');
+    const errorText = document.getElementById('error');
+    const googleFallbackBtn = document.getElementById('google-fallback');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    function validateForm() {
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      if (email === '' || password === '') {
+        continueBtn.disabled = true;
+        continueBtn.classList.remove('enabled');
+        errorText.classList.remove('visible');
+        return false;
+      }
+
+      if (!emailRegex.test(email)) {
+        errorText.textContent = 'Please enter a valid email address';
+        errorText.classList.add('visible');
+        continueBtn.disabled = true;
+        continueBtn.classList.remove('enabled');
+        return false;
+      }
+
+      errorText.classList.remove('visible');
+      continueBtn.disabled = false;
+      continueBtn.classList.add('enabled');
+      return true;
+    }
+
+    emailInput.addEventListener('input', validateForm);
+    passwordInput.addEventListener('input', validateForm);
+
+    continueBtn.addEventListener('click', async () => {
+      if (!validateForm()) return;
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      errorText.classList.remove('visible');
+      continueBtn.disabled = true;
+      continueBtn.textContent = 'Logging in...';
+
+      try {
+        const baseUrl = window.location.origin.includes('5500') 
+          ? 'https://instaping.org' 
+          : window.location.origin;
+          
+        console.log('Attempting login to:', `${baseUrl}/api/login`);
+        
+        const response = await fetch(`${baseUrl}/api/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const responseText = await response.text();
+        console.log('Raw response received:', responseText.substring(0, 200) + '...');
+        
+        if (responseText.trim().startsWith('<!DOCTYPE') || 
+            responseText.trim().startsWith('<html') ||
+            responseText.includes('<body>')) {
+          throw new Error('Server returned HTML. Make sure the Go backend is running on port 8080.');
+        }
+
+        if (!response.ok) {
+          let errorMessage = 'Login failed';
+          try {
+            const errorData = JSON.parse(responseText);
+            errorMessage = errorData.error || errorMessage;
+          } catch {
+            errorMessage = responseText || `HTTP ${response.status}`;
+          }
+          
+          errorText.textContent = errorMessage;
+          errorText.classList.add('visible');
+          throw new Error(errorMessage);
+        }
+
+        const data = JSON.parse(responseText);
+
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userId', data.userId);
+        showToast('Login successful!');
+        setTimeout(() => {
+          window.location.href = 'live-requests.html';
+        }, 800);
+
+      } catch (err) {
+        console.error('Login error:', err);
+        
+        if (err.message.includes('HTML') || err.message.includes('Go backend')) {
+          errorText.textContent = 'Backend server not running. Please start the server on port 8080.';
+        } else if (err.message.includes('Failed to fetch')) {
+          errorText.textContent = 'Cannot connect to server. Is the backend running?';
+        } else {
+          errorText.textContent = err.message;
+        }
+        
+        errorText.classList.add('visible');
+        showToast('Login failed: ' + err.message);
+      } finally {
+        continueBtn.disabled = false;
+        continueBtn.textContent = 'Continue';
+      }
+    });
+
+    // Initialize Google Sign-In
+    function initializeGoogleSignIn() {
+      try {
+        // Check if Google Identity Services is loaded
+        if (typeof google === 'undefined' || !google.accounts) {
+          console.warn('Google Identity Services not loaded, showing fallback button');
+          googleFallbackBtn.style.display = 'flex';
+          googleFallbackBtn.addEventListener('click', () => {
+            showToast('Google Sign-In requires Google Identity Services. Please refresh the page.');
+          });
+          return;
+        }
+
+        // Configure Google Sign-In
+        const clientId = '12239007321-kcvn3r3asgef4ic341tnvbn2bpt8i9qg.apps.googleusercontent.com';
+        
+        google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleSignIn,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          context: 'signin',
+          ux_mode: 'popup',
+          login_uri: window.location.origin + '/api/google/callback'
+        });
+
+        // Render the button
+        google.accounts.id.renderButton(
+          document.getElementById('gsi-container'),
+          {
+            theme: 'filled_black',
+            size: 'large',
+            width: '100%',
+            text: 'continue_with',
+            shape: 'pill',
+            logo_alignment: 'left'
+          }
+        );
+
+        // Optionally: prompt for one-tap sign-in
+        // google.accounts.id.prompt();
+
+      } catch (error) {
+        console.error('Failed to initialize Google Sign-In:', error);
+        googleFallbackBtn.style.display = 'flex';
+        googleFallbackBtn.addEventListener('click', () => {
+          showToast('Google Sign-In is currently unavailable. Please try again later.');
+        });
+      }
+    }
+
+    // Handle Google Sign-In response
+    async function handleGoogleSignIn(response) {
+      try {
+        console.log('Google Sign-In response received');
+        
+        // Show loading state
+        showToast('Authenticating with Google...', 3000);
+        
+        const baseUrl = window.location.origin.includes('5500') 
+          ? 'https://instaping.org' 
+          : window.location.origin;
+        
+        // Send the Google credential to our backend
+        const backendResponse = await fetch(`${baseUrl}/api/google-auth`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            credential: response.credential
+          }),
+        });
+
+        const result = await backendResponse.json();
+
+        if (!backendResponse.ok) {
+          throw new Error(result.error || 'Google authentication failed');
+        }
+
+        // Store the token and user info
+        localStorage.setItem('token', result.token);
+        localStorage.setItem('userId', result.userId);
+        
+        showToast('Google login successful!');
+        
+        // Redirect based on user's onboarding status
+        setTimeout(() => {
+          if (result.isNewUser || !result.hasCompletedOnboarding) {
+            window.location.href = 'profile-settings.html';
+          } else {
+            window.location.href = 'live-requests.html';
+          }
+        }, 800);
+
+      } catch (error) {
+        console.error('Google authentication error:', error);
+        showToast('Google authentication failed: ' + error.message);
+        
+        // Revoke Google auth on error
+        if (google && google.accounts && google.accounts.id) {
+          google.accounts.id.revoke(response.credential);
+        }
+      }
+    }
+
+    // ==================== PWA INSTALL PROMPT ====================
+    
+    let deferredPrompt;
+    const installModal = document.getElementById('installModal');
+    const closeInstallModal = document.getElementById('closeInstallModal');
+    const installBtn = document.getElementById('installBtn');
+    const iosInstructions = document.getElementById('iosInstructions');
+
+    // Check if already installed
+    function isAppInstalled() {
+      return window.matchMedia('(display-mode: standalone)').matches || 
+             window.navigator.standalone ||
+             document.referrer.includes('android-app://');
+    }
+
+    // Check if iOS
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    }
+
+    // Check if user has already dismissed the prompt
+    function hasDismissedPrompt() {
+      return localStorage.getItem('pwaPromptDismissed') === 'true';
+    }
+
+    // Save that user dismissed the prompt
+    function dismissPrompt() {
+      localStorage.setItem('pwaPromptDismissed', 'true');
+      hideInstallModal();
+    }
+
+    // Show install modal
+    function showInstallModal() {
+      if (isIOS()) {
+        // iOS doesn't support beforeinstallprompt, show custom instructions
+        iosInstructions.style.display = 'block';
+      }
+      installModal.classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+
+    // Hide install modal
+    function hideInstallModal() {
+      installModal.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+
+    // Handle install button click
+    async function handleInstallClick() {
+      if (deferredPrompt) {
+        // Show the install prompt
+        deferredPrompt.prompt();
+        
+        // Wait for the user to respond to the prompt
+        const choiceResult = await deferredPrompt.userChoice;
+        
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the install prompt');
+          showToast('Installing InstaPing...');
+          hideInstallModal();
+        } else {
+          console.log('User dismissed the install prompt');
+          dismissPrompt();
+        }
+        
+        // Clear the deferredPrompt variable
+        deferredPrompt = null;
+      } else if (isIOS()) {
+        // For iOS, just hide the modal after showing instructions
+        dismissPrompt();
+      }
+    }
+
+    // Initialize install prompt
+    function initializeInstallPrompt() {
+      // Don't show if already installed or previously dismissed
+      if (isAppInstalled() || hasDismissedPrompt()) {
+        return;
+      }
+
+      // Listen for beforeinstallprompt event (Chrome, Edge, etc.)
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent Chrome 67 and earlier from automatically showing the prompt
+        e.preventDefault();
+        // Stash the event so it can be triggered later
+        deferredPrompt = e;
+        
+        // Show modal after a delay
+        setTimeout(() => {
+          showInstallModal();
+        }, 2000);
+      });
+
+      // If no beforeinstallprompt event (Safari, older browsers), show modal after delay
+      setTimeout(() => {
+        if (!deferredPrompt && !isAppInstalled() && !hasDismissedPrompt()) {
+          showInstallModal();
+        }
+      }, 3000);
+    }
+
+    // Event listeners for install modal
+    closeInstallModal.addEventListener('click', dismissPrompt);
+    installBtn.addEventListener('click', handleInstallClick);
+
+    // Close modal when clicking outside
+    installModal.addEventListener('click', (e) => {
+      if (e.target === installModal) {
+        dismissPrompt();
+      }
+    });
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeGoogleSignIn();
+      initializeInstallPrompt();
+      
+      // Also check on page visibility change
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && isAppInstalled()) {
+          hideInstallModal();
+        }
+      });
+    });
+
+    validateForm();
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => {
+          console.log('Service Worker registered', reg);
+          
+          // Check if app can be installed
+          reg.addEventListener('updatefound', () => {
+            console.log('Service Worker update found');
+          });
+        })
+        .catch(err => console.error('Service Worker registration failed', err));
+    }
+
+    // Cache Manager for automatic cache clearing
+    class CacheManager {
+      constructor() {
+        this.nextClearTime = null;
+        this.init();
+      }
+
+      async init() {
+        // Listen for messages from service worker
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.addEventListener('message', (event) => {
+            this.handleServiceWorkerMessage(event.data);
+          });
+
+          // Get initial cache info
+          await this.getCacheInfo();
+          
+          // Start checking for cache clearing
+          this.startCacheCheck();
+        }
+      }
+
+      handleServiceWorkerMessage(data) {
+        switch (data.type) {
+          case 'CACHE_CLEARED':
+            console.log('Cache was cleared by service worker');
+            this.nextClearTime = data.nextClear;
+            this.showCacheClearedNotification();
+            this.schedulePageRefresh();
+            break;
+          
+          case 'FORCE_RELOAD_PAGE':
+            console.log('Force reload requested by service worker');
+            this.reloadPage();
+            break;
+          
+          case 'SW_ACTIVATED':
+            console.log(`Service Worker v${data.version} activated`);
+            break;
+        }
+      }
+
+      async getCacheInfo() {
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          
+          // Create a message channel for response
+          const messageChannel = new MessageChannel();
+          
+          messageChannel.port1.onmessage = (event) => {
+            if (event.data.lastCacheClear) {
+              this.nextClearTime = event.data.nextCacheClear;
+              console.log('Next cache clear at:', new Date(this.nextClearTime).toLocaleTimeString());
+            }
+          };
+          
+          registration.active.postMessage(
+            { type: 'GET_CACHE_INFO' },
+            [messageChannel.port2]
+          );
+        }
+      }
+
+      startCacheCheck() {
+        // Check every 30 seconds if cache needs to be cleared
+        setInterval(() => {
+          if (this.nextClearTime && Date.now() >= this.nextClearTime) {
+            this.reloadPage();
+          }
+        }, 30000); // Check every 30 seconds
+      }
+
+      showCacheClearedNotification() {
+        // Show a subtle toast notification
+        showToast('App refreshed for latest content');
+      }
+
+      schedulePageRefresh() {
+        // Reload page 5 seconds after cache clear
+        setTimeout(() => {
+          this.reloadPage();
+        }, 5000);
+      }
+
+      reloadPage() {
+        // Only reload if we're on a page that should be refreshed
+        const currentPage = window.location.pathname;
+        
+        // Don't reload login/signup pages during authentication
+        if (currentPage.includes('login.html') || currentPage.includes('signup.html')) {
+          return;
+        }
+        
+        // Add a timestamp to URL to prevent cache
+        const url = new URL(window.location.href);
+        url.searchParams.set('_t', Date.now());
+        
+        // Use location.replace to avoid adding to history
+        window.location.replace(url.toString());
+      }
+    }
+
+    // Initialize cache manager when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      // Only initialize on main pages, not login/signup
+      const currentPage = window.location.pathname;
+      if (!currentPage.includes('login.html') && !currentPage.includes('signup.html')) {
+        window.cacheManager = new CacheManager();
+      }
+    });
+  </script>
+</body>
+</html>
