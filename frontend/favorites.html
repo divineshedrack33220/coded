@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InstaPing | Favorites</title>
+  <link rel="icon" type="image/png" href="asset/logo.jpeg">
+  <!-- theme-color updated to #00AEEF (primary brand color) to match live page -->
+  <meta name="theme-color" content="#00AEEF">
+
+  <style>
+    /* === LIGHT MODE COLOR SCHEME (copied from live-requests page) === */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #FFFFFF; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header with white background, subtle border */
+    header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #FFFFFF; border-bottom: 1px solid #E0E0E0; position: sticky; top: 0; z-index: 100; }
+    
+    /* Logo container: blue circle behind logo (primary #00AEEF) */
+    .logo-small { 
+      width: 40px; 
+      height: 40px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      position: relative;
+    }
+    .logo-small::before {
+      content: '';
+      position: absolute;
+      width: 48px;
+      height: 48px;
+      background: #00AEEF; /* primary blue */
+      border-radius: 50%;
+      z-index: -1;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .logo-small img { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: contain; 
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* Status indicator - light mode */
+    .status-indicator { padding: 8px 16px; background: #F5F5F5; border: 1px solid #E0E0E0; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: border-color 0.2s ease, box-shadow 0.2s ease; color: #000000; }
+    .status-indicator:hover { border-color: #00AEEF; }
+    .status-indicator svg { width: 12px; height: 12px; }
+    .status-available svg { fill: #00AEEF; } /* Primary color */
+    .status-busy svg { fill: #FFFF00; }
+    .status-offline svg { fill: #FF0000; }
+    
+    .favorites-list { flex: 1; overflow-y: auto; padding: 16px 24px 80px; position: relative; }
+    
+    /* Light mode cards */
+    .favorite-card { background: #F8F8F8; border-radius: 20px; padding: 20px; margin-bottom: 20px; display: flex; align-items: center; position: relative; overflow: hidden; cursor: pointer; border: 1px solid #EEEEEE; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .favorite-card:hover { box-shadow: 0 4px 20px rgba(0, 174, 239, 0.15); }
+    .favorite-card:active { transform: scale(0.98); }
+    
+    .profile-photo { width: 72px; height: 72px; border-radius: 50%; overflow: hidden; margin-right: 20px; background: #DDDDDD; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
+    
+    .user-details { flex: 1; min-width: 0; }
+    .name-age { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #000000; }
+    .bio-snippet { font-size: 15px; color: #666666; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meta-info { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #8E8E8E; }
+    .status-dot { width: 12px; height: 12px; border-radius: 50%; background: #808080; }
+    .status-dot.online { background: #00AEEF; box-shadow: 0 0 12px #00AEEF80; } /* primary color for online */
+    
+    /* Favorite icon - red heart */
+    .favorite-icon { padding: 12px; margin-left: 12px; cursor: pointer; }
+    .favorite-icon svg { width: 28px; height: 28px; fill: #FF0000; transition: transform 0.3s ease; }
+    .favorite-icon:active svg { animation: pulse 0.5s ease; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
+    
+    /* Empty state light mode */
+    .empty-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; text-align: center; }
+    .empty-icon { width: 120px; height: 120px; margin-bottom: 32px; opacity: 0.4; fill: #666666; }
+    .empty-title { font-size: 20px; margin-bottom: 12px; color: #333333; }
+    .empty-subtitle { font-size: 16px; color: #666666; line-height: 1.5; }
+    
+    /* Bottom nav light mode */
+    .bottom-nav { display: flex; height: 64px; background: #FFFFFF; border-top: 1px solid #E0E0E0; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: #666666; cursor: pointer; transition: color 0.2s; }
+    .nav-item.active { color: #00FF00; } /* Active live tab green as per live page */
+    .nav-item:hover { color: #333333; }
+    .nav-item.active .nav-icon svg { fill: #00FF00; }
+    .nav-item .nav-icon svg { fill: currentColor; }
+    .nav-icon svg { width: 24px; height: 24px; margin-bottom: 4px; fill: currentColor; }
+    
+    /* FAB uses primary color */
+    .fab { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 64px; height: 64px; background: #00AEEF; color: #000000; border-radius: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,174,239,0.3); cursor: pointer; z-index: 101; transition: transform 0.2s, box-shadow 0.2s; }
+    .fab:hover { transform: translateX(-50%) scale(1.05); box-shadow: 0 6px 16px rgba(0,174,239,0.5); }
+    .fab svg { width: 32px; height: 32px; fill: #000000; }
+    
+    /* Toast light mode with primary border */
+    #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, 0.95); color: #000000; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 12px rgba(0, 174, 239, 0.2); opacity: 0; visibility: hidden; transition: opacity 0.3s ease, transform 0.3s ease; z-index: 200; max-width: 90%; text-align: center; backdrop-filter: blur(8px); border: 1px solid rgba(0,174,239,0.3); }
+    #toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(-8px); }
+
+    /* Shimmer Loading - light mode with primary tint */
+    .shimmer-wrapper {
+      position: absolute;
+      inset: 0;
+      padding: 16px 24px;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.4s ease;
+      z-index: 10;
+    }
+    .shimmer-wrapper.hidden { opacity: 0; visibility: hidden; }
+    .shimmer-card {
+      background: #F0F0F0;
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      border: 1px solid #E0E0E0;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Shimmer effect */
+    .shimmer-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -150%;
+      width: 150%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 174, 239, 0.1) 20%,
+        rgba(0, 174, 239, 0.2) 50%,
+        rgba(0, 174, 239, 0.1) 80%,
+        transparent 100%
+      );
+      animation: shimmer 1.5s infinite linear;
+    }
+    .shimmer-photo { width: 72px; height: 72px; border-radius: 50%; background: #DDDDDD; margin-right: 20px; }
+    .shimmer-details { flex: 1; }
+    .shimmer-name { height: 20px; width: 60%; background: #DDDDDD; border-radius: 8px; margin-bottom: 12px; }
+    .shimmer-bio { height: 15px; width: 85%; background: #DDDDDD; border-radius: 8px; margin-bottom: 12px; }
+    .shimmer-meta { height: 14px; width: 40%; background: #DDDDDD; border-radius: 8px; }
+    .shimmer-heart { width: 28px; height: 28px; background: #DDDDDD; border-radius: 8px; margin-left: 12px; }
+
+    @keyframes shimmer {
+      0% { left: -150%; }
+      100% { left: 200%; }
+    }
+
+    /* Image fallback */
+    img { max-width: 100%; height: auto; }
+    .profile-photo { flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-small">
+      <img src="asset/logo.png" alt="Coded Logo" width="40" height="40" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIGZpbGw9IiNFMEUwRTAiLz48L3N2Zz4='">
+    </div>
+    <div class="status-indicator status-available" id="status">
+      <svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg>
+      Available
+    </div>
+  </header>
+
+  <div class="favorites-list" id="favorites-list">
+    <!-- Shimmer skeleton (light mode) -->
+    <div class="shimmer-wrapper" id="shimmer">
+      <div class="shimmer-card">
+        <div class="shimmer-photo"></div>
+        <div class="shimmer-details">
+          <div class="shimmer-name"></div>
+          <div class="shimmer-bio"></div>
+          <div class="shimmer-meta"></div>
+        </div>
+        <div class="shimmer-heart"></div>
+      </div>
+      <div class="shimmer-card">
+        <div class="shimmer-photo"></div>
+        <div class="shimmer-details">
+          <div class="shimmer-name"></div>
+          <div class="shimmer-bio"></div>
+          <div class="shimmer-meta"></div>
+        </div>
+        <div class="shimmer-heart"></div>
+      </div>
+      <div class="shimmer-card">
+        <div class="shimmer-photo"></div>
+        <div class="shimmer-details">
+          <div class="shimmer-name"></div>
+          <div class="shimmer-bio"></div>
+          <div class="shimmer-meta"></div>
+        </div>
+        <div class="shimmer-heart"></div>
+      </div>
+      <div class="shimmer-card">
+        <div class="shimmer-photo"></div>
+        <div class="shimmer-details">
+          <div class="shimmer-name"></div>
+          <div class="shimmer-bio"></div>
+          <div class="shimmer-meta"></div>
+        </div>
+        <div class="shimmer-heart"></div>
+      </div>
+    </div>
+
+    <!-- Empty state will be injected here if needed -->
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item" id="nav-live">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>
+      </div>
+      <div>Live</div>
+    </div>
+    <div class="nav-item active" id="nav-favorites">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      </div>
+      <div>Favorites</div>
+    </div>
+    <div class="nav-item"></div>
+    <div class="nav-item" id="nav-chats">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
+      </div>
+      <div>Chats</div>
+    </div>
+    <div class="nav-item" id="nav-profile">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      </div>
+      <div>Profile</div>
+    </div>
+
+    <button class="fab" id="fab-post" aria-label="Post Request">
+      <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+    </button>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const fallbackImage = 'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png';
+    const API_BASE_URL = 'https://www.instaping.org/api';
+
+    function showToast(message, duration = 2000) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toast.hideTimeout);
+      toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
+    }
+
+    (function() {
+      const token = localStorage.getItem('token');
+      if (!token || token.length < 100) {
+        showToast('Invalid or missing session. Please log in.');
+        localStorage.removeItem('token');
+        setTimeout(() => window.location.href = 'login.html', 1500);
+        return;
+      }
+
+      const favoritesList = document.getElementById('favorites-list');
+      const shimmer = document.getElementById('shimmer');
+
+      async function loadFavorites(attempt = 1) {
+        // Show shimmer
+        favoritesList.innerHTML = '';
+        favoritesList.appendChild(shimmer);
+        shimmer.classList.remove('hidden');
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/favorites`, {
+            headers: { 
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (!res.ok) {
+            if (res.status === 401) {
+              showToast('Session expired. Logging out...');
+              localStorage.removeItem('token');
+              setTimeout(() => window.location.href = 'login.html', 1500);
+              return;
+            }
+            throw new Error(`Server error ${res.status}`);
+          }
+
+          const favorites = await res.json();
+          const favoritesArray = Array.isArray(favorites) ? favorites : [];
+
+          // Clear shimmer
+          shimmer.classList.add('hidden');
+          setTimeout(() => shimmer.remove(), 400);
+
+          favoritesList.innerHTML = '';
+
+          if (favoritesArray.length === 0) {
+            favoritesList.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    <line x1="4" y1="4" x2="20" y2="20" stroke-width="3" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div class="empty-title">No favorites yet</div>
+                <div class="empty-subtitle">You haven't saved anyone yet</div>
+              </div>
+            `;
+            return;
+          }
+
+          favoritesArray.forEach(item => {
+            const user = item.user || {};
+
+            const displayName = user.name || 'User';
+            const displayBio = user.bio || 'No bio yet';
+            const avatarUrl = user.avatar || fallbackImage;
+
+            const card = document.createElement('div');
+            card.className = 'favorite-card';
+            card.dataset.userId = item.targetUserId;
+
+            card.innerHTML = `
+              <div class="profile-photo">
+                <img 
+                  src="${avatarUrl}" 
+                  alt="${displayName}" 
+                  onerror="this.src='${fallbackImage}'"
+                >
+              </div>
+              <div class="user-details">
+                <div class="name-age">${displayName}</div>
+                <div class="bio-snippet">${displayBio}</div>
+                <div class="meta-info">
+                  <div>Nearby</div>
+                  <div class="status-dot"></div>
+                </div>
+              </div>
+              <div class="favorite-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+              </div>
+            `;
+
+            favoritesList.appendChild(card);
+          });
+
+        } catch (err) {
+          console.error('Favorites load error:', err);
+          showToast(`Failed to load favorites (attempt ${attempt})`);
+          shimmer.classList.add('hidden');
+
+          if (attempt < 3) {
+            setTimeout(() => loadFavorites(attempt + 1), 2000);
+          } else {
+            favoritesList.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-title">Failed to load</div>
+                <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #00AEEF; color: #000; border: none; border-radius: 20px; cursor: pointer;">Retry</button>
+              </div>
+            `;
+          }
+        }
+      }
+
+      // Click on card (but not on heart) -> open chat
+      favoritesList.addEventListener('click', async e => {
+        const card = e.target.closest('.favorite-card');
+        if (!card || e.target.closest('.favorite-icon')) return;
+
+        const userId = card.dataset.userId;
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/chats`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ participants: [userId] })
+          });
+          if (!res.ok) throw new Error('Failed to create chat');
+          showToast('Chat opened!');
+          setTimeout(() => window.location.href = `chat.html?id=${userId}`, 800);
+        } catch (err) {
+          showToast('Failed to open chat');
+        }
+      });
+
+      // Click on heart icon -> remove favorite
+      favoritesList.addEventListener('click', async e => {
+        const iconContainer = e.target.closest('.favorite-icon');
+        if (!iconContainer) return;
+
+        const icon = iconContainer.querySelector('svg');
+        icon.style.animation = 'pulse 0.5s ease';
+
+        const card = iconContainer.closest('.favorite-card');
+        const userId = card.dataset.userId;
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/favorite`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ targetUserId: userId })
+          });
+          if (!res.ok) throw new Error('Failed to remove favorite');
+
+          showToast('Removed from favorites');
+          card.style.transition = 'opacity 0.3s ease';
+          card.style.opacity = '0';
+          setTimeout(() => {
+            card.remove();
+            if (favoritesList.children.length === 0) {
+              favoritesList.innerHTML = `
+                <div class="empty-state">
+                  <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                      <line x1="4" y1="4" x2="20" y2="20" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                  </div>
+                  <div class="empty-title">No favorites yet</div>
+                  <div class="empty-subtitle">You haven't saved anyone yet</div>
+                </div>
+              `;
+            }
+          }, 300);
+        } catch (err) {
+          showToast('Failed to remove favorite');
+        }
+      });
+
+      document.querySelector('.fab').addEventListener('click', () => {
+        window.location.href = 'post.html';
+      });
+
+      document.getElementById('nav-live').addEventListener('click', () => window.location.href = 'live-requests.html');
+      document.getElementById('nav-chats').addEventListener('click', () => window.location.href = 'chats.html');
+      document.getElementById('nav-profile').addEventListener('click', () => window.location.href = 'my-profile.html');
+
+      loadFavorites();
+    })();
+  </script>
+</body>
+</html>
